@@ -381,7 +381,7 @@ func (k outcomeKeeps) record(loweringContext lowering.Ctx, ts *compile.Types, un
 	diags = append(diags, keepTagBeside(loweringContext, ts, unmodeled, schema, tagged, pointer)...)
 	diags = append(diags, keepTextBounds(loweringContext, unmodeled, schema, k.text, pointer)...)
 	for _, key := range k.validation {
-		diags = append(diags, annotation.PreserveValidationOnlyKeyword(unmodeled, schema, key, pointer, loweringContext.Place())...)
+		diags = append(diags, preserveValidationOnlyKeyword(loweringContext, unmodeled, schema, key, pointer)...)
 	}
 	diags = append(diags, recordNullBranches(loweringContext, unmodeled, k.nulls)...)
 	kept, keptDiags := keepRefConjuncts(loweringContext, unmodeled, k.refEntries, pointer)
@@ -617,8 +617,8 @@ func keepRefConjuncts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, ref
 	for _, b := range refEntries {
 		_, text := refSpelling(b.entry.schema)
 		ref := keys[b.entry.pointer]
-		ok, keptDiags := annotation.PreserveNodeInto(unmodeled, ref.key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
-			ir.ReasonDegradedLowering, loweringContext.Place().At(ref.at))
+		ok, keptDiags := preserveNode(loweringContext, unmodeled, ref.key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
+			ir.ReasonDegradedLowering, ref.at)
 		diags = append(diags, keptDiags...)
 		kept[b.entry.pointer] = ok
 	}
@@ -690,7 +690,7 @@ func keepConjuncts(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema
 			written, named = append(written, "$ref"), append(named, "$ref")
 		}
 	}
-	kept, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, schema, "allOf", ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+	kept, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, schema, "allOf", ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keptDiags...)
 	if kept {
 		written, named = append(written, "allOf"), append(named, "allOf")

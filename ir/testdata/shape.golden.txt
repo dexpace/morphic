@@ -969,6 +969,7 @@ type Unmodeled map[string]UnmodeledEntry
 type UnmodeledEntry struct
 	"provenance" Provenance
 	"reason" UnmodeledReason
+	"targets" map[encoding/json/jsontext.Pointer]TypeID omitempty
 	"value" encoding/json/jsontext.Value
 
 type UnmodeledReason string

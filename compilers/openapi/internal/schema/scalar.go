@@ -236,7 +236,7 @@ func encodingName(loweringContext lowering.Ctx, schema *statement.Schema, format
 		return content, nil
 	}
 	at := pointer + ids.Ptr("format")
-	kept, diags := annotation.PreserveSchemaKeyword(&common.Unmodeled, schema, "format", ir.ReasonNoIRHome, pointer, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, &common.Unmodeled, schema, "format", ir.ReasonNoIRHome, pointer)
 	if kept {
 		diags = append(diags, loweringContext.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
@@ -383,7 +383,7 @@ func principalEncoding(loweringContext lowering.Ctx, schema *statement.Schema, t
 // the keyword, where no ir.Encoding holds it, for why (noEncodingField).
 func keepContentKeyword(loweringContext lowering.Ctx, unmodeled *ir.Unmodeled, schema *statement.Schema, keyword string, pointer jsontext.Pointer, why string,
 ) []ir.Diagnostic {
-	kept, diags := annotation.PreserveSchemaKeyword(unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer, loweringContext.Place())
+	kept, diags := preserveSchemaKeyword(loweringContext, unmodeled, schema, keyword, ir.ReasonNoIRHome, pointer)
 	if !kept {
 		return diags
 	}

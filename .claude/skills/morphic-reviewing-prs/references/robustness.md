@@ -5,8 +5,8 @@ here: each new loop, recursion, queue, buffer and read has an explicit limit, a 
 package does not own becomes an error, a cancelled run stops, and no read leaves what the run
 allows. It loads `morphic-designing-code` and `morphic-measuring-performance`.
 
-1. Name the limit on each loop, recursion, queue, buffer and retry the change adds, and what the
-   work grows with under it
+1. Name the limit on each loop, recursion, queue, buffer and retry the change adds, in code or in a
+   rule a design document states, and what the work grows with under it
    (`.claude/skills/morphic-designing-code/references/design-rules.md#bound-the-product`), each part
    of its charge held to the cost it stands for
    (`.claude/skills/morphic-designing-code/references/design-rules.md#charge-each-part-to-its-cost`).
@@ -32,6 +32,10 @@ allows. It loads `morphic-designing-code` and `morphic-measuring-performance`.
    (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#every-input-route-reaches-the-guard`),
    and rewrite each open repro of a route the change joins into its new spelling
    (`references/robustness.md#new-route-open-bugs`).
+7. For each runtime behaviour a document under `docs/emitters` states, bound what a caller or a
+   server controls (`references/robustness.md#runtime-rule-bounds-what-a-server-sends`).
+8. Read each guard of a boundary whole after its last design change, and decide what it settles
+   between askers by a table (`references/robustness.md#boundary-guard-read-whole`).
 
 The matrix is each new limit, foreign call and read, with the input that tests it and both builds'
 results.
@@ -56,3 +60,28 @@ results.
 - **Why.** #1470 made the reference expansion budget charge what a path item's operations copy, and
   the 4.3x margin its default's comment states fell to 1.6x on the description it names (#1470).
 - **Probe.** The report gives each stated figure with its base and head reruns.
+
+## Bound what a server or caller controls in an emitter runtime rule
+`runtime-rule-bounds-what-a-server-sends`
+
+- **Rule.** For each runtime behaviour a document under `docs/emitters` states, name what a caller
+  or a server controls in its input (a response body, a header, a cursor, a redirect target), and
+  the work or memory that input can make it spend. Require a bound, or a reason none is needed.
+- **Why.** #1743's first draft formatted every decimal in plain notation, so a server cursor
+  `1E+999999999` decoded from twelve characters would expand into a billion digits (#1744).
+- **Probe.** `grep -nE 'writes|reads|sends|retries|follows' <document>`, and for each clause name
+  the hostile response that grows it.
+
+## Read a boundary guard whole after its last design change
+`boundary-guard-read-whole`
+
+- **Rule.** Code guarding a boundary, such as the addresses a read may dial, is read whole by one
+  reader after its last design change. What it settles between askers is decided by a table of
+  every order of askers by every route a read takes, redirects included, each row run; and that
+  decision is a design change, read whole again.
+- **Why.** Point reviews of #1940's address guard, `engine/reader/netguard.go`, found four defects
+  while it was written; a whole reading found three more and a decision, settled by a table; reading
+  it whole again found that decision serving a redirected read in one order and refusing it in the
+  other (#1940).
+- **Probe.** The report names the guard's last design commit, the whole reading after it, and each
+  table row's verdict in both orders.

@@ -200,6 +200,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkPrefixHeaders,
 		checkPrefixBindings,
 		checkEntityRefs,
+		checkUnreferencedAnonymousTypes,
 	}
 }
 

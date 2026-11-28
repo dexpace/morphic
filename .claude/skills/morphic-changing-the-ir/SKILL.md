@@ -22,10 +22,10 @@ representation they take, and architecture §2.5 says how a change lands.
    (`references/ir-lessons.md#weigh-the-framing`), prototyping each emitter mechanism against its
    layer's requirements (`references/ir-lessons.md#prototype-against-every-requirement`), and write
    each loser's reason in `docs/ir` beside the winner.
-5. Name the check that will hold it: an `irverify` rule, a codec test or a lint rule.
+5. Name the check that will hold it: an `irverify` rule, a codec test or a lint rule, or, for a rule
+   in `docs/emitters`, a `T-<n>` in `docs/emitters/testing/mandatory-tests.md` the rule cites.
 
-Passes follow architecture §2.2: where validate runs, how a pass takes settings, and which passes
-always run.
+Passes: architecture §2.2.
 
 ## What changes with it
 
@@ -35,29 +35,31 @@ always run.
   a lowering that starts filling a member, or a hint moved at a position
   `testdata/golden/openapi/hint_positions.yaml` does not write, is the bump no test sees: make it,
   with the row's `meaning`. `git diff origin/main... -- testdata | grep -E '^-\s*"(canonical|hint)"'`
-  lists the names a branch moved.
+  lists the names a branch moved. A diagnostic shape change can also move `engine/report`'s
+  `SchemaVersion` (`references/ir-lessons.md#report-schema-version`).
 - **Other PRs.** After each merge moving a version, check no version repeats
   (`references/ir-lessons.md#version-collisions`).
 - **Mentions.** A position only mentioning a type needs more than classifying
   (`references/ir-lessons.md#mention-is-no-use`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
   `ir/irverify`; `references/ir-lessons.md` says which list each meets.
-- **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
-  `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
+- **Census.** Run `go test ./cmd/morphic-census -update` when a case sets a fact listed in
+  `testdata/unwitnessed.golden.txt`.
 - **Goldens.** A version bump rewrites none, but a new namespace in a compiler's `Namespaces`
   rewrites the `idSpaces` of every one (`references/ir-lessons.md#new-id-namespace`).
 - **Values.** A lowering writing a value a field never held, one a consumer switches on, or
   withdrawing one, changes no shape, so no test sees it: bump for its meaning
   (`references/ir-lessons.md#widened-field-values`).
-  A field naming another node bumps nothing (`references/ir-lessons.md#verdict-on-another-node`).
+  A field naming another node bumps nothing (`references/ir-lessons.md#verdict-on-another-node`); a
+  node changing kind at its ID bumps (`references/ir-lessons.md#kind-change-at-an-id-bumps`).
+- **Old wording.** Amending a rule sweeps the sentences that stated it, code blocks included
+  (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-prose-a-meaning-change-falsifies`).
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
-- **Breaking.** A version bump breaks every consumer, as `docs/ir/ir-version.md` says: the title
-  carries `!`, and the commit and PR bodies say what an older consumer sees
-  (`morphic-shipping-prs`).
+- **Breaking.** A version bump's title takes `!`, and its commit and PR bodies say what an older
+  consumer sees (`docs/ir/ir-version.md`, `morphic-shipping-prs`).
 
 ## References
 
-- `references/ir-lessons.md`: version collisions, hand lists a new field meets, new namespaces,
-  invariants a type held, values a field's readers assume, a flattened member's readers, design
-  rules over their document, what shapes a declaration, and what the verifier and codecs must
-  reach.
+- `references/ir-lessons.md`: version bumps, hand lists, namespaces, invariants, field values,
+  flattened members and emitter design rules.
+- `references/verifier-and-codecs.md`: what the verifier, text predicates and codecs must reach.

@@ -4,6 +4,7 @@
 package pass_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"maps"
 	"math"
@@ -631,10 +632,10 @@ func TestConstUnions_WatchesOnlyTheBranchesOfAUnionThatMayBeAnEnum(t *testing.T)
 }
 
 // TestConstUnions_WalksOnlyWhatCanNameAType holds the walk for references to
-// what can hold a TypeID: a model whose property also carries provenance, kept
-// constructs, a constraint and a name in every channel shows it no more values
-// than one carrying none of them, while a doc ref, which can name a type, is
-// shown.
+// what can hold a TypeID: a model whose property also carries provenance, a
+// constraint, tags and a name in every channel shows it no more values than
+// one carrying none of them, while a doc ref and an unmodeled entry (which can
+// name a type through Targets) are shown.
 func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 	t.Parallel()
 	model := func() *ir.Model {
@@ -646,7 +647,7 @@ func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 
 	full := model()
 	full.Provenance = ir.Provenance{Pointer: "/components/schemas/M", Node: "n", Inferred: "a-heuristic"}
-	full.Unmodeled = ir.Unmodeled{"openapi:x-a": {Reason: ir.ReasonVendorExtension}}
+	full.Tags = []string{"t"}
 	full.Name = ir.Naming{Source: "M", Canonical: "m", Hint: "m", Aliases: []string{"N"}}
 	full.Properties[0].Constraints = &ir.Constraints{Pattern: "^a$"}
 	assert.Equal(t, bare, pass.TypeRefVisits(withTypes(full), "type/x/U/0"), "the walk entered what names no type")
@@ -654,6 +655,10 @@ func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 	carrying := model()
 	carrying.Docs.Refs = []ir.DocRef{{Type: "type/x/U/0"}}
 	assert.Greater(t, pass.TypeRefVisits(withTypes(carrying), "type/x/U/0"), bare, "the walk passed over a doc ref")
+
+	unmodeled := model()
+	unmodeled.Unmodeled = ir.Unmodeled{"openapi:not": {Reason: ir.ReasonValidationOnly, Targets: map[jsontext.Pointer]ir.TypeID{"/$ref": "type/x/U/0"}}}
+	assert.Greater(t, pass.TypeRefVisits(withTypes(unmodeled), "type/x/U/0"), bare, "the walk passed over unmodeled targets")
 }
 
 // TestConstUnions_ReadsEachGoTypeOnce pins what the walk's pruning costs:

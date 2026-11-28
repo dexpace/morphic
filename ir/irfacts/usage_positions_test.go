@@ -22,13 +22,14 @@ import (
 // with the reason. A field of one of them names a type without putting a value
 // of it on the wire.
 var usageNotRoots = map[reflect.Type]string{
-	reflect.TypeFor[ir.Value]():        "a value names the type it was written against",
-	reflect.TypeFor[ir.Example]():      "an example illustrates a value; it carries none",
-	reflect.TypeFor[ir.Availability](): "a type changed from is one an older version used",
-	reflect.TypeFor[ir.PropertyPath](): "a path locates a member inside a value another position carries",
-	reflect.TypeFor[ir.ResourceInfo](): "a resource's identifiers and properties restate what its operations carry",
-	reflect.TypeFor[ir.DocRef]():       "prose naming a type puts no value of it on the wire",
-	reflect.TypeFor[ir.EntityRef]():    "a deprecation naming its replacement puts no value of it on the wire",
+	reflect.TypeFor[ir.Value]():          "a value names the type it was written against",
+	reflect.TypeFor[ir.Example]():        "an example illustrates a value; it carries none",
+	reflect.TypeFor[ir.Availability]():   "a type changed from is one an older version used",
+	reflect.TypeFor[ir.PropertyPath]():   "a path locates a member inside a value another position carries",
+	reflect.TypeFor[ir.ResourceInfo]():   "a resource's identifiers and properties restate what its operations carry",
+	reflect.TypeFor[ir.DocRef]():         "prose naming a type puts no value of it on the wire",
+	reflect.TypeFor[ir.EntityRef]():      "a deprecation naming its replacement puts no value of it on the wire",
+	reflect.TypeFor[ir.UnmodeledEntry](): "an unmodeled construct kept verbatim puts no modeled value on the wire",
 }
 
 // usageNotRootFields are fields that name types and are no usage root, with the

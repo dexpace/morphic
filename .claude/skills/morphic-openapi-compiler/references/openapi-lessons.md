@@ -26,13 +26,25 @@ canary. A behaviour found that the page lacks is added there.
   readers outside the changed package that no getter search finds. List them, `<Kind>` the old one
   as `ir.Kind<Kind>` names it, `T?` reaching `MapT`:
   `git grep -nE '\*(ir\.)?<Kind>T?([^A-Za-z0-9_]|$)|Kind<Kind>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`;
-  a hit in `ir` serves a fact, as `IsSubtype`, whose callers read the kind too. Ask each what the
-  new kind gives it, then compile the position as each consumer names it
-  (`references/openapi-lessons.md#changed-kind-at-each-consumer`).
+  a hit in `ir` serves a fact, as `IsSubtype`, whose callers read it too. Ask each what the new
+  kind gives it, compile as each consumer names it
+  (`references/openapi-lessons.md#changed-kind-at-each-consumer`), and take
+  `references/openapi-lessons.md#readers-of-a-moved-base` for a moved scalar base.
 - **Why.** A union distributed across a form body's `allOf` made it a `Union`, which the multipart
   reader and `pass`'s `encoding` check read for properties, though no getter search named them
-  (#1688, #1687). A mapping to a subtype made a `Union` failed `IsSubtype` (#1696).
-- **Probe.** List in the PR body each hit with its answer.
+  (#1688, #1687). A mapped subtype made a `Union` failed `IsSubtype` (#1696).
+- **Probe.** List each hit and answer in the PR body.
+
+## Find the readers of a scalar whose base chain moves
+`readers-of-a-moved-base`
+
+- **Rule.** A lowering keeping a `Scalar` and moving what its `Base` chain ends in has readers too:
+  `git grep -nE 'Base\.Target' -- 'compilers/*.go' 'pass/*.go' ':!*_test.go'`. Compile each reader's
+  output on `main` and the branch.
+- **Why.** Moving `base64url` and `http-date` onto `bytes` and `datetime_offset` turned a
+  `base64url` part into a file part and stripped `Secret` from an `http-date` credential (#1893,
+  #1897).
+- **Probe.** List each grep hit beside its compiled output on `main` and the branch.
 
 ## Compile a position whose node kind changes as each consumer names it
 `changed-kind-at-each-consumer`
@@ -40,8 +52,9 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** For each position whose node kind a change alters, compile it as each consumer of the
   old kind names it: a discriminator's `mapping` and its implicit route by component name, an
   `allOf` composing it as a `Base`, a `$ref` from another position, and a form body's `encoding`
-  key. Run `validate --verify` on `main` and the branch and read every diagnostic. A consumer the
-  branch fails is a finding even where `main` fails a sibling spelling, filed or not.
+  key. Run `validate --verify` on `main` and the branch, reading every diagnostic
+  (`references/lossless-and-diagnostics.md#compile-and-read-every-finding`). A consumer the branch
+  fails is a finding even where `main` fails a sibling spelling, filed or not.
 - **Why.** Distributing a union on an `allOf` branch made a mapped subtype a `Union`, which
   `pass.Validate` refused as no variant of its base. `main` failed the same for `$ref` branches,
   unfiled, so the tracker searches found nothing (#1688, #1696).
@@ -59,18 +72,32 @@ canary. A behaviour found that the page lacks is added there.
 ## Call the library's reading; never re-derive it
 `reuse-library-readings`
 
-- **Rule.** Call the library's functions for every reading it already implements (reference parsing,
-  anchors, URI resolution) and `nodeview.View` for tree reads, but compare two schemas as
-  `references/openapi-lessons.md#compare-raw-nodes` says. Call a `yml` function `nodeview` lacks
-  directly, under its own allowlist entry
+- **Rule.** Call the library for readings it implements (reference parsing, anchors, URI
+  resolution) and `nodeview.View` for tree reads; compare schemas by
+  `references/openapi-lessons.md#compare-raw-nodes` and override a wrong reading by
+  `references/openapi-lessons.md#override-a-library-misreading`. Call a `yml` function `nodeview`
+  lacks directly, under its own allowlist entry
   (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`). Key a
-  per-node map by a set when an alias can make one node several schemas. A guard that must agree
-  with the resolver makes the call the resolver makes.
+  per-node map by a set when an alias makes one node several schemas. A guard agreeing with the
+  resolver makes its call.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
-  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`). #1278 widened an
+  disagree on a duplicate key (#763, `docs/parser-library.md#duplicate-key`). #1278 widened an
   allowlist for `yml`, no rule saying whether a wrapper should stand instead.
-- **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
-  and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
+- **Probe.** Generate documents with percent-encoding, a second `#`, `.` and `..`, aliases and
+  `<<`, and run each through the raw resolver in a bounded subprocess.
+
+## Override a library misreading in one function and respell its input
+`override-a-library-misreading`
+
+- **Rule.** Where the library's reading contradicts the standard it implements, put the override in
+  one function every reader calls and respell the library's input to that answer: `Locate` in
+  `compilers/openapi/internal/componentlookup/documents.go` and `ForResolver` in
+  `compilers/openapi/internal/fragment/fragment.go`.
+- **Why.** `references.ResolveAbsoluteReference` on `"/schemas/pet.yaml"` and
+  `"https://api.example.com/v1/openapi.yaml"` returns `/schemas/pet.yaml` as a file path against
+  RFC 3986 §5.2 (#1849, #1850).
+- **Probe.** Compare the library's answer with RFC 3986 §5.2 on the cases touched, then plant the
+  library's answer back: a test fails.
 
 ## Compare two schemas by rendering their raw nodes
 `compare-raw-nodes`
@@ -263,7 +290,22 @@ canary. A behaviour found that the page lacks is added there.
   then classify each row with a reason.
 - **Why.** One case failed the order oracle's reach guard, the validation oracle and
   `TestLoweringSpec_CasesAreTheCorpus` on its first run (#1106); a numeric case added rows (#1113).
-- **Probe.** `go test ./internal/harness ./compilers/openapi/...`.
+- **Probe.** `go test ./internal/harness ./compilers/openapi/...`
+  (`references/openapi-lessons.md#every-testdata-spec-meets-the-oracle`).
+
+## Every OpenAPI 3 spec under `testdata/` meets the validation oracle
+`every-testdata-spec-meets-the-oracle`
+
+- **Rule.** Any OpenAPI 3 spec under `testdata/`, not only `testdata/conformance/openapi/`, meets
+  the validation oracle: its roots in `compilers/openapi/internal/canary/validation_oracle_test.go`
+  are `validationSpecs` (`compilers/openapi/internal/canary/testdata/validation`) and `testdata`.
+  Run `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`
+  and classify any new disagreement row.
+- **Why.** Adding a 3.2 fixture naming `defaultMapping` under `testdata/openapi/` failed
+  `TestValidationOracle_AgreesWithTheLibrary` in CI (`discriminator_maps_its_own_base.yaml 20:25`,
+  #1814, #1820).
+- **Probe.** Add a 3.2 spec naming a `defaultMapping` under `testdata/openapi/` in a throwaway
+  tree: the oracle test fails until `-update` lists it.
 
 ## Ask the resolver directly
 `resolver-probe`

@@ -220,7 +220,7 @@ func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 			base: fmt.Sprintf(union, "{$ref: '#/components/schemas/'}", "c: '#/components/schemas/'"),
 			owner: "    Cat: {type: object, properties: {kind: {type: string}}}\n" +
 				"    '': {$ref: '#/components/schemas/Cat'}\n",
-			want: map[string]ir.TypeID{"c": "type/anonymous/components/schemas/"},
+			want: map[string]ir.TypeID{"c": "type/openapi/components/schemas/"},
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -383,10 +383,17 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 	}
 	t.Run("the last position is lowered", func(t *testing.T) {
 		t.Parallel()
-		doc, _ := parseFull(t, openapitest.ComponentSpec(model("a: '#/components/schemas/B/$defs/Broken'")))
-		broken, ok := doc.Types["type/anonymous/components/schemas/B/$defs/Broken"]
-		require.True(t, ok, "only the mapping reaches $defs/Broken")
+		src := openapitest.ComponentSpec(model("a: '#/components/schemas/B/$defs/Broken'"))
+		lowerer, _ := schema.LoweredFor(t, src)
+		lowerer.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), lowerer.Ctx, lowerer.Types, lowerer.Schemas()))
+		lowered := lowerer.Document(t)
+		broken, ok := lowered.Types["type/anonymous/components/schemas/B/$defs/Broken"]
+		require.True(t, ok, "only the mapping reaches $defs/Broken during lowering")
 		assert.Equal(t, "kept", broken.Common().Docs.Description, "what is written beside its $ref")
+
+		full, _ := parseFull(t, src)
+		assert.NotContains(t, full.Types, ir.TypeID("type/anonymous/components/schemas/B/$defs/Broken"),
+			"unreferenced broken node is pruned after reporting its failing $ref")
 	})
 }
 
@@ -891,7 +898,7 @@ func TestDiscriminatorMapping_ReadsAComponentsNameFirst(t *testing.T) {
       discriminator: {propertyName: kind, mapping: {d: Dog, s: a/b, h: 'a#b', e: ''}}
 `, "    Dog: " + kind + "\n", "    a/b: " + kind + "\n", "    'a#b': " + kind + "\n", "    '': " + kind + "\n"}
 	want := map[string]ir.TypeID{"d": componentID("Dog"), "s": componentID("a~1b"), "h": componentID("a#b"),
-		"e": "type/anonymous/components/schemas/"}
+		"e": "type/openapi/components/schemas/"}
 	for _, reversed := range []bool{false, true} {
 		doc, diags, _ := compileFiles(t, map[string]string{"Dog": "type: object\nproperties: {bark: {type: boolean}}\n"},
 			rawSpec("3.1.0", blocks, "", reversed), openapi.Options{})

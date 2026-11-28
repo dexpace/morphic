@@ -284,15 +284,15 @@ a way to show one entity across API versions. Each is decided by data, never by 
   share. A route plan then derives every URL from the catalog alone, through templates in the docs
   emitter's options, one per kind of page (`"/{service}/{group}/{operation}"`), a nested group's
   `{group}` being its groups' slugs from the service down, joined by `/`, and one template's scope a
-  group's direct children. A slug is presentation (INV3), rendered from names by the naming policy,
-  and two that collide in one template's scope are told apart by the ID-keyed resolution identifiers
-  take ([naming](refine/naming.md)): three pairs of the golden spec's declared types share their
-  canonical words, which the SDKs resolve as well. Two slugs collide where they fold alike, as
-  artifact paths do ([the path fold](emit/rules.md)), since a file system that ignores case keeps
-  one page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
-  `webhooks`, which slugs spelt as the source spells them would part by case alone. A slug that is a
-  Windows device name, which no page's path may hold ([emit rules](emit/rules.md)), is told apart as
-  a colliding one is, and a slug is held to the length cap of a name a path holds
+  group's direct children. A slug is presentation (INV3), rendered from names by the target's
+  naming, and two that collide in one template's scope are told apart by the ID-keyed resolution
+  identifiers take ([naming](refine/naming.md)): three pairs of the golden spec's declared types
+  share their canonical words, which the SDKs resolve as well. Two slugs collide where they fold
+  alike, as artifact paths do ([the path fold](emit/rules.md)), since a file system that ignores
+  case keeps one page of the two: two of the golden spec's groups, in its one service, are
+  `Webhooks` and `webhooks`, which slugs spelt as the source spells them would part by case alone. A
+  slug that is a Windows device name, which no page's path may hold ([emit rules](emit/rules.md)),
+  is told apart as a colliding one is, and a slug is held to the length cap of a name a path holds
   ([naming](refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 - **A total route plan.** Every `ServiceID`, `GroupID`, `OperationID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
@@ -308,7 +308,12 @@ a way to show one entity across API versions. Each is decided by data, never by 
   alike ([the path fold](emit/rules.md)), are an error `emitters/docs/route-collision` naming both,
   never a page that overwrites another and never a page dropped. The check runs on the URLs the
   templates produce, over every route a run plans, its table's and its agent documents' together, so
-  no template can reintroduce a collision the catalog did not have.
+  no template can reintroduce a collision the catalog did not have. A route whose page would stand
+  at a path of the manifest's own, `morphic.manifest.json`, `morphic.manifest.pending.json` or
+  `.morphic.manifest.pending.json.tmp` at the output root, or under one, compared by the fold, is the same error, naming the entity and the
+  manifest: a template routing a page there is the options' fault, which the check of a
+  generation's paths would otherwise report as a breach of the target's, after every target ran
+  ([emit rules](emit/rules.md)).
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
   with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
   of one target and language), and the route plan answers it. A spec's
@@ -331,8 +336,9 @@ a way to show one entity across API versions. Each is decided by data, never by 
   manifest holds each run's under its label ([write /
   integrate](write-integrate.md#what-the-manifest-records)). A document no pass slices by version,
   one stating none among them, is one snapshot labelled `""`, written at the output root. For a
-  target whose `Capabilities.CrossVersion` is set, the engine asks the target for every snapshot's
-  route table through `Router` ([the contract](contract/emitter.md)), before any snapshot's
+  cross-version target, one whose generator implements `Router` ([the
+  contract](contract/emitter.md#a-target-is-configured-once)), the engine asks it for every
+  snapshot's route table through that interface, before any snapshot's
   `Generate`, handing it the input it will hand that `Generate` but for `Samples` and `Routes`,
   which no page's or anchor's route reads, and hands each run the tables of all of them in
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
@@ -387,12 +393,12 @@ model's constructor — is that SDK emitter's refine output, and an emitter neve
 ([emitters](README.md)). A docs emitter that spelled calls itself would re-derive them and could
 disagree with the SDK it documents. So each SDK emitter returns its usage samples per operation in
 `EmitterOutput.Samples`, one for each language its callers write: a Multiplatform target's callers
-write Kotlin and Swift ([Swift](targets/kotlin/swift.md)). A target whose
-`Capabilities.ReadsSamples` is set names in its options the targets whose samples it shows, which
-the engine reads through `SampleReader` ([the contract](contract/emitter.md)), a decoded options
-value without it being `engine/sample-target-invalid`, and the engine runs each of them on every
-snapshot before it, whether or not the run names them, with the configuration that target would run
-with, which the engine finds as it finds any target's ([target options](contract/options.md)), and
+write Kotlin and Swift ([Swift](targets/kotlin/swift.md)). A target that shows samples names in
+its options the targets whose samples it shows, and its generator implements `SampleReader`, which
+the engine reads them through ([the contract](contract/emitter.md#a-target-is-configured-once)),
+and the engine runs each of them on every snapshot before it, whether or not the run names them,
+with the configuration that target would run with, which the engine finds in the project's
+configuration as it finds any target's ([the project](contract/project.md)), and
 the prior manifest of that target's own output, as a run naming it would read it, writing none of
 its artifacts unless the run names it too, and hands it their samples in `EmitterInput.Samples`. So
 what a docs run shows depends on its options and never on which other targets share the run: a docs
@@ -441,24 +447,29 @@ member, operation and message:
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, save
   one holding an `ExternalURL` and no value, which the docs show as a link and which no set holds,
   since no value of it can be checked, shown, filled from or sent; each checked against its type and
-  constraints, a header's as the value it is and never through the readings a header's text admits
-  ([values as text](refine/text.md#reading-a-text)), a member's being those of every declaration its
-  flattening takes or overrides, as a synthesized value's are (below), with visibility set aside,
-  since the shape it is shown through settles that: a value no shape could make valid, such as one
-  its enum does not list, is refused, an enum the document leaves open (`Enum.Closed` false)
-  admitting a value it does not list. Shown through a shape, an example drops the members that shape
-  does not hold, keeping a key no member declares that the model's catch-all admits, checked against
-  the catch-all's type, and takes, for each member the shape requires and the example lacks, the
-  value a synthesized model gives that member (below), an `Undeclared` name's from its catch-all
-  type's set, which marks what is shown `Inferred` and labels it generated, its declared members
-  kept as written; with `Assemble` off it fills nothing, and an example missing a member the shape
-  requires gives way as one it cannot complete does. So a response-form example serves a create
-  shape, a patch body's may leave out a required member, and, with `Assemble` on, every required
-  member's set holding a value and no `Strict` union left ambiguous by the shape, no shape is left
-  without one. `Build` refuses a union value several variants admit where the union is
-  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
-  discriminated union that the variant its tag routes to does not admit, whichever other variant
-  does, since decoding reads it by its tag
+  constraints, a header's as the value it is, save a list's or an object's text (below), and never
+  through the readings a header's text admits ([values as text](refine/text.md#reading-a-text)), a
+  member's being those of every declaration its flattening takes or overrides, as a synthesized
+  value's are (below), with visibility set aside, since the shape it is shown through settles that:
+  a value no shape could make valid, such as one its enum does not list, is refused, an enum the
+  document leaves open (`Enum.Closed` false) admitting a value it does not list. A parameter's or a
+  header's string example of a list or an object its `Style` and `Explode` give a text ([values as
+  text](refine/text.md#a-value-no-style-arranges)) is that value written out, as OpenAPI reads such
+  an example and the IR's own check holds it ([values](../ir/values.md#values-held-to-their-type)),
+  so it is read through them as a text is ([values as text](refine/text.md#reading-a-text)) and the
+  value read is checked, one that reading does not read being refused. Shown through a shape, an
+  example drops the members that shape does not hold, keeping a key no member declares that the
+  model's catch-all admits, checked against the catch-all's type, and takes, for each member the
+  shape requires and the example lacks, the value a synthesized model gives that member (below), an
+  `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and labels
+  it generated, its declared members kept as written; with `Assemble` off it fills nothing, and an
+  example missing a member the shape requires gives way as one it cannot complete does. So a
+  response-form example serves a create shape, a patch body's may leave out a required member, and,
+  with `Assemble` on, every required member's set holding a value and no `Strict` union left
+  ambiguous by the shape, no shape is left without one. `Build` refuses a union value several
+  variants admit where the union is `TypePlan.Strict`, which decodes it as no variant, reporting it
+  once as above, and a value of a discriminated union that the variant its tag routes to does not
+  admit, whichever other variant does, since decoding reads it by its tag
   ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows such a value
   elsewhere through all of them, keeping each member one of them holds in the shape, since an
   inclusive value may be several variants at once. A shape can make a value two variants of a

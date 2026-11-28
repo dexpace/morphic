@@ -14,7 +14,9 @@ drew it (`references/lossless-and-diagnostics.md`).
 - **Rules.** `docs/compilers/openapi.md` is normative: one keyed entry per lowering rule, each
   naming its cases, codes and tests. Find a rule by its key
   (`grep -n '^### ' docs/compilers/openapi.md`) rather than reading the whole file, and cite it as
-  `docs/compilers/openapi.md#<key>`.
+  `docs/compilers/openapi.md#<key>`. A rule's text names no issue: what it leaves open, a limit with
+  its issue, goes in its `- Status:`, and `TestLoweringSpec_TextStatesEachCodeAndNoIssue` refuses an
+  issue anywhere else (`CONTRIBUTING.md`'s lowering-rule recipe).
 - **The library.** `docs/parser-library.md` records each parser-library behaviour the compiler
   depends on, each pinned by a canary in `compilers/openapi/internal/canary`. Cite the entry; never
   restate a behaviour or name a library version.
@@ -27,12 +29,9 @@ drew it (`references/lossless-and-diagnostics.md`).
 
 ## Before calling a change done
 
-- Compile the input and read the IR and every diagnostic:
-  `go run ./cmd/morphic compile --verify <spec>` (the IR goes to stdout, diagnostics to stderr, and
-  `--verify` checks each stage's IR against its invariants). Keep the diagnostics beside the IR
-  with `2>"$file"`, or read them alone from `go run ./cmd/morphic validate --verify <spec>`, which
-  writes no IR. Never `2>&1 >/dev/null | grep`: zsh's `MULTIOS` sends the IR, which holds every
-  diagnostic, into the pipe too, doubling a count.
+- Compile the input and read the IR and every diagnostic with
+  `go run ./cmd/morphic compile --verify --diagnostics-per-code-limit 0 <spec> 2>"$file"`
+  (`references/lossless-and-diagnostics.md#compile-and-read-every-finding`).
 - A new conformance case follows step 4 of `CONTRIBUTING.md`'s lowering-rule recipe and
   `references/openapi-lessons.md#conformance-case`, and passes
   `go test ./internal/harness ./compilers/openapi/...`.

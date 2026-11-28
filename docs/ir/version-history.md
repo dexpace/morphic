@@ -1264,3 +1264,17 @@ it sees. Changes made together in one bump are listed together under it.
   - **Correlation keys** ([derived facts](./derived-facts.md#correlation-keys)): a key spells a
     group's ID and an enum member's value tag as the IR now does, so `irfacts.CorrelationVersion`
     moves to 5, and a key stored under 4 matches none derived under 5.
+- **0.73.0** — `UnmodeledEntry` gains `Targets map[jsontext.Pointer]TypeID` (`targets`, omitted
+  when empty) mapping each RFC 6901 JSON Pointer inside `Value` that writes a resolved type
+  reference (such as `"/$ref"`, `"/if/$ref"`, `"/mapping/<tag>"`, `"/defaultMapping"`, or `""`
+  for a scalar reference string) to the `TypeID` it lowered to; an empty-named OpenAPI component
+  schema (`components.schemas[""]`) stays in the declared component namespace
+  (`type/openapi/components/schemas/`, `Anonymous: false`, matching
+  `auth/openapi/components/securitySchemes/`), departing from the anonymous hoist #405 recorded
+  because a declared component is no hoisted inline type — it joins the names pass's type scope, so
+  a `""` schema beside `Empty` now draws `pass/name-collision`, as the security schemes already do;
+  and `irverify` enforces that every `Anonymous: true`
+  type in `Document.Types` is reachable from a non-anonymous type or a reference outside
+  `Document.Types` (`ir/unreferenced-anonymous-type`,
+  [type-graph](./type-graph.md#reachability-of-anonymous-types)). A consumer pinned to 0.72.0
+  refuses the document on the new `targets` member.

@@ -6,16 +6,29 @@ to read — and to execute outside the case its author measured.
 ## Check an every, never or only claim at every site it covers
 `universal-claims-enumerate-every-site`
 
-- **Rule.** Before a comment, assertion message, doc, test name or PR body states an absolute
-  (never, always, only, every, no, read by nothing, validated once), enumerate each caller, return
-  path, producer, position, route and input class it covers and check each; otherwise scope the
-  claim to the sites checked or name the exceptions. A field's doc describes what every writer of
-  the field writes.
+- **Rule.** Before a comment, assertion, doc, test name or PR body states an absolute (never,
+  always, only, every, no, read by nothing, validated once), enumerate each caller, return path,
+  producer, position, route and input class it covers and check each; else scope it or name
+  exceptions. A field's doc describes every writer; set increments take
+  `references/claims.md#set-claims-diff-the-set`.
 - **Why.** "Read by nothing" was written while `constraints.go` read the field, and "never reports a
   spec-level problem" over paths that do (#111, #190). A body's "a change that adds one now fails a
   test" held for no union whose branches stand alone (#1514, #1594).
 - **Probe.** List the sites mechanically (writers by `git grep`, callers, return statements,
   composition positions) and compile one input per site, reading every diagnostic.
+
+## Diff the whole set for claims about what a set gains
+`set-claims-diff-the-set`
+
+- **Rule.** A sentence fixing a set's members or a change's increment ("grows by X", "adds X",
+  "brings X in") claims the whole set without an absolute word. Diff the whole set before and after
+  rather than checking only that the named member appears.
+- **Why.** At #1502's `a73e1f6a7`, "grows by `KotlinEnum`" passed round 1 because `KotlinEnum`
+  appeared, while diffing headers showed five added names: `KotlinEnum`, `KotlinEnumCompanion`,
+  `KotlinComparable`, `KotlinArray` and `KotlinIterator` (#1773).
+- **Probe.** `LC_ALL=C comm -13` over the sets before and after, each sorted by `LC_ALL=C sort`
+  (`references/toolchain.md#one-collation-for-sort-and-comm`); every printed line matches the
+  claim.
 
 ## Run the input a comment describes before saying what it does
 `probe-behaviour-claims-by-running-the-input`
@@ -160,9 +173,23 @@ to read — and to execute outside the case its author measured.
 
 - **Rule.** For "every walk asks the context", wrap the context so `Err` records the longest gaps
   between asks over one whole compile of a large spec. Pin each new ask with a test that counts asks
-  through `ctxtest.Countdown` and cuts partway.
+  through `ctxtest.Countdown` and cuts partway; a screen cut short takes
+  `references/claims.md#cut-screen-fails-open`.
 - **Why.** An allocation-bounded test passed while a lazy index walked a million nodes without
   asking (#1131).
+
+## Check `ctx.Err()` after a cut screen before uninterruptible work
+`cut-screen-fails-open`
+
+- **Rule.** A screen or walk that honours the context answers "nothing found" when cut. Place a
+  `ctx.Err()` check immediately before each call into code that reads no context, after every
+  context-aware screen in the same step.
+- **Why.** On #1131 (`d51028eda`), cut screens (alias weigher, node count, local-file guard)
+  answered "nothing found", letting a cancelled run parse an overlay, hand an unadmitted document
+  to the resolver, build on a half-prepared tree or apply an undercounted overlay action (#2286).
+- **Probe.** Cancel at every check of a whole run through `ctxtest.Countdown`
+  (`internal/ctxtest/countdown.go`) and assert no uninterruptible consumer ran after a cut, as
+  `TestLoad_DoesNextToNothingOnceItRefusesACancel` does.
 
 ## Check 'same', 'distinct' and 'shared' claims on both sides with differing inputs
 `claims-that-two-things-agree`
@@ -197,11 +224,12 @@ to read — and to execute outside the case its author measured.
 `figure-names-its-conditions`
 
 - **Rule.** A figure a PR body or commit quotes from a measurement names its budget and method,
-  such as a fuzz time, a minimization bound or a profile's window, and a wall-clock figure also its
-  machine, core count and load, so a later check can agree or disagree with it.
+  such as a fuzz time, a minimization bound or a profile's window, the revision each side of it was
+  measured at, and a wall-clock figure also its machine, core count and load, so a later check can
+  agree or disagree with it.
 - **Why.** A body gave a fuzz search's minutes with no machine or load, and another a share of time
   spent minimizing that read 77%, 90% and 84% at budgets of 5, 45 and 90 seconds (#1382, #1385,
-  #1607).
+  #1607); #1940's body mixed figures measured against different bases (#1918, #1940).
 - **Probe.** Each figure in the body names those beside it; `uptime` and `nproc`, or
   `sysctl -n hw.ncpu`, give the last two.
 

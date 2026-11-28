@@ -200,14 +200,14 @@ target](../docs-and-mock.md#a-command-line-target)), a mock reads a request body
 mock accepts](../docs-and-mock.md#what-a-mock-accepts)), and the samples and a mock show values of
 it, which the example set holds ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
 Two of them reading the shapes apart would show members another lacks, which is the third test of
-[plan or refine](plan-or-refine.md), and the example set is the plan's, which imports only `ir` and
-`ir/irfacts` ([packages](../packages.md)), so no refine helper can serve it. A target with
-intersection types writes the composition as it stands and need not read `Composed`, as a
-class-based one need not read `Flattened`. On the golden spec (spec @bc6fad24, morphic @ea70eba79),
-23 models narrow a union beside a member of their own, in 158 entries: `rulesets_ResponseRule` over
-the 21 variants of `rulesets_RequestRule`, and `dns-records_dns-record-batch-patch` over a union of
-two variants that narrow unions of 8 and 13, so 21 entries. The 26 others add nothing to their
-union, and none is a case no distribution serves.
+[plan or refine](plan-or-refine.md), and the example set is the plan's, which imports only `ir`,
+`ir/irfacts` and `emitters/options` ([packages](../packages.md)), so no refine helper can serve it.
+A target with intersection types writes the composition as it stands and need not read `Composed`,
+as a class-based one need not read `Flattened`. On the golden spec (spec @bc6fad24, morphic
+@ea70eba79), 23 models narrow a union beside a member of their own, in 158 entries:
+`rulesets_ResponseRule` over the 21 variants of `rulesets_RequestRule`, and
+`dns-records_dns-record-batch-patch` over a union of two variants that narrow unions of 8 and 13, so
+21 entries. The 26 others add nothing to their union, and none is a case no distribution serves.
 
 ## Variants that can share a value
 
@@ -472,7 +472,7 @@ render](../docs-and-mock.md#what-the-docs-render)).
 
 A type no shape reaches keeps its own name. The words are neutral, and each target cases them with
 the type's ([naming](../refine/naming.md)). A name that renders as another declaration's is a
-collision `Ctx.Syms` resolves
+collision `naming.Resolve` resolves
 ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)). Two filters of
 one type whose words come out alike, as the custom lifecycles `Foo:BarBaz` and `FooBar:Baz` do, are
 still two shapes and two declarations, told apart there in the order of their keys. Among the names

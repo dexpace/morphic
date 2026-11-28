@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -285,17 +284,17 @@ func recordUnread(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir
 // (resolveDiscriminatorRoutes): every keeping of one comes through here.
 func keepUnreadKeys(loweringContext lowering.Ctx, ts *compile.Types, unmodeled *ir.Unmodeled, schema *statement.Schema, unhomed []string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	if slices.Contains(unhomed, "discriminator") {
-		diags = resolveDiscriminatorRoutes(loweringContext, ts, schema, pointer)
-	}
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
-		ok, keptDiags := annotation.PreserveSchemaKeyword(unmodeled, schema, keyword,
-			ir.ReasonDegradedLowering, pointer, loweringContext.Place())
+		ok, keptDiags := preserveSchemaKeyword(loweringContext, unmodeled, schema, keyword,
+			ir.ReasonDegradedLowering, pointer)
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, keyword)
 		}
+	}
+	if slices.Contains(kept, "discriminator") {
+		diags = append(diags, resolveDiscriminatorRoutes(loweringContext, ts, schema, pointer)...)
 	}
 	counts := slices.DeleteFunc(slices.Clone(kept), func(keyword string) bool {
 		return keyword != "maxItems" && keyword != "minItems" || !keptCount(schema, keyword, countOf(schema, keyword))

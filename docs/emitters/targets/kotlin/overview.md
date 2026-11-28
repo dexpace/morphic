@@ -208,8 +208,11 @@ Kotlin formatter runs as one of the target's checks
 
 The parser Kotlin's own tools rely on is the compiler's front end, which runs on the JVM, so the
 Kotlin targets' adapter is a JVM helper the engine runs, since the engine owns all I/O. Until it
-exists the Kotlin targets merge nothing and report `Capabilities.WriteIntegrate` false: pruning
-stays header-gated and no hand-written file is touched.
+exists the Kotlin targets have no adapter and merge nothing
+([capabilities](../../contract/registry.md#a-capability-an-interface-shows)): a file is written and
+pruned whole, by its digest ([write /
+integrate](../../write-integrate.md#a-file-is-judged-by-its-digest)), and no hand-written file is
+touched.
 
 The Kotlin targets' extractors ([surface verification](../../surface-verification.md)) read the ABI
 dumps the Kotlin Gradle plugin's ABI validation writes, what generated code alone calls left out of

@@ -197,13 +197,14 @@ func (s *valueSite) fits(value *ir.Value) string {
 }
 
 // writtenOut reports whether value may be td, of shape sh, written out in a
-// style the site writes sh in, b holding td's bounds: a string as its text,
-// and a number or a bool, holding no delimiter, only as the one item of a list
-// whose item counts admit one and whose element type holds that item, as
-// oneItem judges it. So neither is an object's or a tuple's text
+// style the site writes sh in, b holding td's bounds, where td holds leaves
+// alone, as arranged says: a string as its text, never split, so its items and
+// count go unjudged and nothing tells it from the value's data (#2311); and a
+// number or a bool, holding no delimiter, only as the one item of a list whose
+// counts admit one and whose element holds it, as oneItem judges
 // (docs/ir/values.md#values-held-to-their-type).
 func (s *valueSite) writtenOut(value *ir.Value, sh shape, td ir.TypeDef, b *bounds) bool {
-	if !s.writtenShapes.has(sh) {
+	if !s.writtenShapes.has(sh) || !arranged(s.doc, td) {
 		return false
 	}
 	if value.Kind == ir.ValueString {
@@ -242,6 +243,87 @@ func oneItem(doc *ir.Document, value *ir.Value, target ir.TypeID) bool {
 	default:
 		return fitsShape(value, item, target, &elementBounds) == ""
 	}
+}
+
+// arranged reports whether td, the list, tuple, map or model a value's shape
+// settles to, holds leaves alone, as a style needs to give it a text
+// (docs/emitters/refine/text.md#a-value-no-style-arranges): a list's element,
+// a tuple's elements and rest, a map's values, and a model's flattened members
+// and the values of each catch-all its flattening reads. A model composing an
+// entry that names no model holds what its consumer lowers, so not leaves alone.
+func arranged(doc *ir.Document, td ir.TypeDef) bool {
+	switch t := td.(type) {
+	case *ir.List:
+		return leaf(doc, t.ElementType.Target)
+	case *ir.Tuple:
+		return (t.Rest == nil || leaf(doc, t.Rest.Target)) &&
+			!slices.ContainsFunc(t.ElementTypes, func(element ir.TypeRef) bool { return !leaf(doc, element.Target) })
+	case *ir.MapT:
+		return leaf(doc, t.Value.Target)
+	default:
+		model, ok := td.(*ir.Model) // the one other type of a shape a style writes
+		return ok && modelOfLeaves(doc, model.ID)
+	}
+}
+
+// modelOfLeaves reports whether the flattened members of the model id, and the
+// values of each catch-all its flattening reads, are leaves.
+func modelOfLeaves(doc *ir.Document, id ir.TypeID) bool {
+	flattening := ir.FlattenedProperties(doc.Types, id)
+	if len(flattening.Unflattened) != 0 ||
+		slices.ContainsFunc(flattening.Properties, func(member ir.FlatProperty) bool { return !leaf(doc, member.Property.Type.Target) }) {
+		return false
+	}
+	for _, holder := range ir.CatchAllHolders(doc.Types, id) {
+		// A model's catch-alls are held by models alone.
+		if model, ok := doc.Types[holder].(*ir.Model); ok && !catchAllOfLeaves(doc, model.AdditionalProperties) {
+			return false
+		}
+	}
+	return true
+}
+
+// catchAllOfLeaves reports whether the values catchAll admits, under a key no
+// pattern matches and under each pattern, are leaves.
+func catchAllOfLeaves(doc *ir.Document, catchAll *ir.AdditionalProperties) bool {
+	return (catchAll.Value == nil || leaf(doc, catchAll.Value.Target)) &&
+		!slices.ContainsFunc(catchAll.Patterns, func(pattern ir.PatternProperties) bool { return !leaf(doc, pattern.Value.Target) })
+}
+
+// maxLeafReads bounds how many types leaf reads, the first and each variant of
+// a union it reaches counting once each, so a cycle of unions ends.
+const maxLeafReads = 256
+
+// leaf reports whether target is a leaf, a type whose value travels as one
+// string, number or boolean (docs/emitters/refine/text.md#a-value-no-style-arranges):
+// a type that settles to neither a list nor an object and is no union, and a
+// union whose variants are leaves. A union reaching more than maxLeafReads
+// types is read as no leaf.
+func leaf(doc *ir.Document, target ir.TypeID) bool {
+	var pending [maxLeafReads]ir.TypeID
+	pending[0] = target
+	read, count := 1, 1
+	for count > 0 {
+		count--
+		var b bounds
+		sh, td, _ := settle(doc, pending[count], &b)
+		if sh == shapeList || sh == shapeObject {
+			return false
+		}
+		union, ok := td.(*ir.Union)
+		if !ok {
+			continue
+		}
+		if read+len(union.Variants) > maxLeafReads {
+			return false
+		}
+		for i := range union.Variants {
+			pending[count] = union.Variants[i].Type.Target
+			count++
+		}
+		read += len(union.Variants)
+	}
+	return true
 }
 
 // fitsShape returns why value, which is not null, is no value of shape sh, the

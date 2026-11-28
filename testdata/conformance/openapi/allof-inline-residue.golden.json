@@ -611,6 +611,9 @@
               }
             ]
           },
+          "targets": {
+            "/allOf/0/not/$ref": "type/openapi/components/schemas/ItemA"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Rebased/allOf/0"
@@ -624,6 +627,9 @@
             },
             "type": "object"
           },
+          "targets": {
+            "/not/$ref": "type/openapi/components/schemas/ItemA"
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Rebased/allOf/0/allOf/0"
@@ -633,6 +639,9 @@
           "reason": "validation_only",
           "value": {
             "$ref": "item.json"
+          },
+          "targets": {
+            "/$ref": "type/openapi/components/schemas/ItemB"
           },
           "provenance": {
             "source": 0,

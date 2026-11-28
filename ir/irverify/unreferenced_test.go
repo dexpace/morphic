@@ -1,0 +1,270 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package irverify_test
+
+import (
+	"encoding/json/jsontext"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
+)
+
+// TestVerify_UnreferencedAnonymousTypes pins ir/unreferenced-anonymous-type:
+// anonymous types reached from named types, outside Types, UnmodeledEntry
+// Targets, or transitively through other anonymous types pass, while orphan
+// leaves, self-loops, and dead cycles are reported.
+func TestVerify_UnreferencedAnonymousTypes(t *testing.T) {
+	t.Parallel()
+	const (
+		namedID  ir.TypeID = "type/test/Root"
+		liveProp ir.TypeID = "type/anonymous/prop"
+		liveDeep ir.TypeID = "type/anonymous/deep"
+		liveOp   ir.TypeID = "type/anonymous/op"
+		liveUnm  ir.TypeID = "type/anonymous/unmodeled"
+		liveDoc  ir.TypeID = "type/anonymous/doc-unmodeled"
+		deadLeaf ir.TypeID = "type/anonymous/dead-leaf"
+		deadSelf ir.TypeID = "type/anonymous/dead-self"
+		deadCycA ir.TypeID = "type/anonymous/dead-cycle-a"
+		deadCycB ir.TypeID = "type/anonymous/dead-cycle-b"
+	)
+
+	anon := func(id ir.TypeID, props ...ir.Property) *ir.Model {
+		return &ir.Model{ID: id, Name: ir.Naming{Hint: "h"}, Anonymous: true, Properties: props}
+	}
+	prop := func(name string, target ir.TypeID) ir.Property {
+		return ir.Property{ID: ir.PropertyID("property/test/" + name), Name: ir.NamingFor(name), WireName: name, Type: ir.TypeRef{Target: target}}
+	}
+
+	root := &ir.Model{
+		ID:         namedID,
+		Name:       ir.NamingFor("Root"),
+		Properties: []ir.Property{prop("p", liveProp)},
+		Unmodeled: ir.Unmodeled{
+			"openapi:not": {
+				Reason:  ir.ReasonValidationOnly,
+				Value:   ir.RawValue(`{"$ref":"#/a"}`),
+				Targets: map[jsontext.Pointer]ir.TypeID{"/$ref": liveUnm},
+			},
+		},
+	}
+
+	doc := &ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces: map[string][]string{
+			ir.IDKindType:     {"anonymous", "test"},
+			ir.IDKindProperty: {"test"},
+		},
+		Unmodeled: ir.Unmodeled{
+			"openapi:kept": {
+				Reason:  ir.ReasonDegradedLowering,
+				Value:   ir.RawValue(`"#/d"`),
+				Targets: map[jsontext.Pointer]ir.TypeID{"": liveDoc},
+			},
+		},
+		Services: []ir.Service{{
+			ID:   "service/test/s",
+			Name: ir.NamingFor("S"),
+			Groups: []ir.OperationGroup{{
+				ID:   "operation-group/test/g",
+				Name: ir.NamingFor("G"),
+				Operations: []ir.Operation{{
+					ID:   "operation/test/op",
+					Name: ir.NamingFor("Op"),
+					Params: []ir.Parameter{{
+						ID:   "parameter/test/p",
+						Name: ir.NamingFor("p"),
+						Type: ir.TypeRef{Target: liveOp},
+					}},
+				}},
+			}},
+		}},
+		Types: ir.TypeRegistry{
+			namedID:  root,
+			liveProp: anon(liveProp, prop("deep", liveDeep), prop("dup", liveDeep)),
+			liveDeep: anon(liveDeep, prop("back", liveProp)),
+			liveOp:   anon(liveOp),
+			liveUnm:  anon(liveUnm),
+			liveDoc:  anon(liveDoc),
+			deadLeaf: anon(deadLeaf),
+			deadSelf: anon(deadSelf, prop("self", deadSelf)),
+			deadCycA: anon(deadCycA, prop("b", deadCycB)),
+			deadCycB: anon(deadCycB, prop("a", deadCycA)),
+		},
+	}
+
+	var got []string
+	for _, v := range irverify.Verify(doc) {
+		if v.Code == "ir/unreferenced-anonymous-type" {
+			got = append(got, v.Path)
+		}
+	}
+	assert.Equal(t, []string{
+		"types[type/anonymous/dead-cycle-a]",
+		"types[type/anonymous/dead-cycle-b]",
+		"types[type/anonymous/dead-leaf]",
+		"types[type/anonymous/dead-self]",
+	}, got)
+}
+
+func minimalValidDoc(types ir.TypeRegistry) *ir.Document {
+	return &ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces: map[string][]string{
+			ir.IDKindType:     {"anonymous", "test"},
+			ir.IDKindProperty: {"test"},
+			ir.IDKindService:  {"test"},
+		},
+		Sources:  []ir.SourceInfo{{Format: "openapi@3.1", Path: "spec.yaml", Hash: "0000000000000000000000000000000000000000000000000000000000000000"}},
+		Services: []ir.Service{{ID: "service/test/s", Name: ir.NamingFor("S")}},
+		Types:    types,
+	}
+}
+
+// TestVerify_UnreferencedAnonymousTypes_AllDirectlyReachedAndOnlyDead pins the
+// fast paths: every anonymous type directly reached from a named root, every
+// anonymous type reached transitively, and an anonymous type with no roots at
+// all.
+func TestVerify_UnreferencedAnonymousTypes_AllDirectlyReachedAndOnlyDead(t *testing.T) {
+	t.Parallel()
+	const (
+		namedID ir.TypeID = "type/test/Root"
+		anonA   ir.TypeID = "type/anonymous/a"
+		anonB   ir.TypeID = "type/anonymous/b"
+	)
+
+	t.Run("all directly reached", func(t *testing.T) {
+		t.Parallel()
+		doc := minimalValidDoc(ir.TypeRegistry{
+			namedID: &ir.Model{ID: namedID, Name: ir.NamingFor("Root"), Properties: []ir.Property{
+				{ID: "property/test/a", Name: ir.NamingFor("a"), WireName: "a", Type: ir.TypeRef{Target: anonA}},
+			}},
+			anonA: &ir.Model{ID: anonA, Name: ir.Naming{Hint: "a"}, Anonymous: true},
+		})
+		assert.Empty(t, irverify.Verify(doc))
+	})
+
+	t.Run("all reached transitively", func(t *testing.T) {
+		t.Parallel()
+		doc := minimalValidDoc(ir.TypeRegistry{
+			namedID: &ir.Model{ID: namedID, Name: ir.NamingFor("Root"), Properties: []ir.Property{
+				{ID: "property/test/a", Name: ir.NamingFor("a"), WireName: "a", Type: ir.TypeRef{Target: anonA}},
+			}},
+			anonA: &ir.Model{ID: anonA, Name: ir.Naming{Hint: "a"}, Anonymous: true, Properties: []ir.Property{
+				{ID: "property/test/b", Name: ir.NamingFor("b"), WireName: "b", Type: ir.TypeRef{Target: anonB}},
+			}},
+			anonB: &ir.Model{ID: anonB, Name: ir.Naming{Hint: "b"}, Anonymous: true},
+		})
+		assert.Empty(t, irverify.Verify(doc))
+	})
+
+	t.Run("no roots at all", func(t *testing.T) {
+		t.Parallel()
+		doc := minimalValidDoc(ir.TypeRegistry{
+			anonA: &ir.Model{ID: anonA, Name: ir.Naming{Hint: "a"}, Anonymous: true},
+		})
+		vs := irverify.Verify(doc)
+		assert.Len(t, vs, 1)
+		assert.Equal(t, "ir/unreferenced-anonymous-type", vs[0].Code)
+		assert.Equal(t, "types[type/anonymous/a]", vs[0].Path)
+	})
+}
+
+// TestVerify_UnmodeledTargets_PointersAndResolution pins that UnmodeledEntry
+// Targets keys must be valid RFC 6901 JSON Pointers (including "" for a scalar
+// payload), must resolve to a JSON value inside Value, and every target value
+// must be non-empty and resolve in Document.Types.
+func TestVerify_UnmodeledTargets_PointersAndResolution(t *testing.T) {
+	t.Parallel()
+	const (
+		rootID ir.TypeID = "type/test/Root"
+		aID    ir.TypeID = "type/anonymous/a"
+		bID    ir.TypeID = "type/anonymous/b"
+	)
+
+	makeDoc := func(raw ir.RawValue, targets map[jsontext.Pointer]ir.TypeID) *ir.Document {
+		return minimalValidDoc(ir.TypeRegistry{
+			rootID: &ir.Model{
+				ID:   rootID,
+				Name: ir.NamingFor("Root"),
+				Unmodeled: ir.Unmodeled{
+					"openapi:not": {Reason: ir.ReasonValidationOnly, Value: raw, Targets: targets},
+				},
+			},
+			aID: &ir.Model{ID: aID, Name: ir.Naming{Hint: "a"}, Anonymous: true},
+			bID: &ir.Model{ID: bID, Name: ir.Naming{Hint: "b"}, Anonymous: true},
+		})
+	}
+
+	// Scalar root, nested object with JSON-escaped and RFC 6901-escaped keys, and array indexing.
+	assert.Empty(t, irverify.Verify(makeDoc(
+		ir.RawValue(`{"skip":1,"mapping":{"a/b~c":"#/b"},"list":["x",{"\u0024ref":"#/a"}]}`),
+		map[jsontext.Pointer]ir.TypeID{"": aID, "/mapping/a~1b~0c": bID, "/list/1/$ref": aID, "/list/0": bID},
+	)))
+	scalarDoc := minimalValidDoc(ir.TypeRegistry{
+		rootID: &ir.Model{
+			ID:   rootID,
+			Name: ir.NamingFor("Root"),
+			Unmodeled: ir.Unmodeled{
+				"openapi:$ref": {Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(`"#/a"`), Targets: map[jsontext.Pointer]ir.TypeID{"": aID}},
+			},
+		},
+		aID: &ir.Model{ID: aID, Name: ir.Naming{Hint: "a"}, Anonymous: true},
+	})
+	assert.Empty(t, irverify.Verify(scalarDoc))
+
+	// Syntax errors on target pointers.
+	badPtr := irverify.Verify(makeDoc(ir.RawValue(`{}`), map[jsontext.Pointer]ir.TypeID{"no-leading-slash": aID, "/bad~2escape": bID}))
+	require.Len(t, badPtr, 2)
+	assert.Equal(t, "ir/unmodeled-target-pointer-malformed", badPtr[0].Code)
+	assert.Equal(t, "document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/bad~2escape]", badPtr[0].Path)
+	assert.Equal(t, "ir/unmodeled-target-pointer-malformed", badPtr[1].Code)
+	assert.Equal(t, "document.Types[type/test/Root].Unmodeled[openapi:not].Targets[no-leading-slash]", badPtr[1].Path)
+
+	// Valid RFC 6901 pointers that do not resolve inside Value.
+	unresolved := irverify.Verify(makeDoc(
+		ir.RawValue(`{"obj":{"a":1},"arr":["x"]}`),
+		map[jsontext.Pointer]ir.TypeID{
+			"/missing":                  aID,
+			"/obj/a/into-scalar":        bID,
+			"/arr/01":                   aID,
+			"/arr/-":                    bID,
+			"/arr/2":                    aID,
+			"/arr/99999999999999999999": bID,
+		},
+	))
+	var unresolvedPaths []string
+	for _, v := range unresolved {
+		if v.Code == "ir/unmodeled-target-pointer-unresolved" {
+			unresolvedPaths = append(unresolvedPaths, v.Path)
+		}
+	}
+	assert.Equal(t, []string{
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/-]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/01]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/2]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/arr/99999999999999999999]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/missing]",
+		"document.Types[type/test/Root].Unmodeled[openapi:not].Targets[/obj/a/into-scalar]",
+	}, unresolvedPaths)
+
+	// Invalid UTF-8 in a target pointer is reported by checkUTF8 alone, not as unresolved.
+	badUTF8 := codesOf(irverify.Verify(makeDoc(ir.RawValue(`{}`), map[jsontext.Pointer]ir.TypeID{"/\xff": aID, "": bID})))
+	assert.Contains(t, badUTF8, "ir/invalid-utf8")
+	assert.NotContains(t, badUTF8, "ir/unmodeled-target-pointer-unresolved")
+
+	// Invalid JSON Value reports ir/invalid-raw-value without adding a spurious unresolved pointer violation.
+	badRaw := codesOf(irverify.Verify(makeDoc(ir.RawValue(`{not json`), map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "": bID})))
+	assert.Contains(t, badRaw, "ir/invalid-raw-value")
+	assert.NotContains(t, badRaw, "ir/unmodeled-target-pointer-unresolved")
+
+	// Dangling and empty target IDs.
+	assert.Contains(t, codesOf(irverify.Verify(makeDoc(ir.RawValue(`{"$ref":"a","other":{"$ref":"b"},"bad":{"$ref":"c"}}`),
+		map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/bad/$ref": "type/anonymous/missing"}))), "ir/dangling-type-ref")
+	assert.Contains(t, codesOf(irverify.Verify(makeDoc(ir.RawValue(`{"$ref":"a","other":{"$ref":"b"},"empty":{"$ref":"c"}}`),
+		map[jsontext.Pointer]ir.TypeID{"/$ref": aID, "/other/$ref": bID, "/empty/$ref": ""}))), "ir/empty-type-ref")
+}

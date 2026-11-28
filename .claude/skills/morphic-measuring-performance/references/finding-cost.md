@@ -32,6 +32,19 @@ how to measure so the number means what the claim says.
   on macOS or `perf stat -e instructions:u` on Linux. A run that exits non-zero measured a failure.
   With neither tool, take `references/finding-cost.md#cpu-time-without-a-counter`.
 
+## Quote an absolute duration as instructions retired and quiet rate
+`quote-a-duration-as-instructions-and-rate`
+
+- **Rule.** Quote an absolute duration or timeout budget as instructions retired and the machine's
+  measured rate on a quiet run (instructions per user second), with the load average at both ends.
+  State a figure below a timeout as an estimate from those two, never a raw wall-clock reading. Time
+  a test binary alone with `go test -c`.
+- **Why.** On #1996 (`6630476ad`), three back-to-back runs of `openapicases.test` under load 6.4 to
+  7.7 differed by 10% in wall time (6.22 to 6.88 s) while instructions agreed to 0.05%, and
+  `go test` spanned 10.7 to 16.1 s (#2078).
+- **Probe.** Build with `go test -c ./<pkg>`, run the binary three times under `/usr/bin/time -l`
+  with `uptime` at both ends, and report instructions, quiet rate and load.
+
 ## A `/usr/bin/time` instruction count stops at the timed process
 `count-stops-at-the-timed-process`
 
@@ -238,14 +251,27 @@ how to measure so the number means what the claim says.
   shapes no corpus holds: a spine hundreds of levels deep with a wide leaf, many parallel deep
   chains, many `$ref`s into distinct entries of one wide mapping, and many `$ref`s to one wide
   component, growing both together. Nested loops take
-  `references/finding-cost.md#grow-each-dimension-alone`. Rerun the reproducers of closed cost
-  issues whose tests the change deletes.
-- **Why.** A pointer builder quadratic in depth passed a corpus of real specs and the full gate, and
-  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those
-  shapes read linear while references times size grew the output, which doubling one hides (#1191,
-  #1240).
+  `references/finding-cost.md#grow-each-dimension-alone`, scanned scalars
+  `references/finding-cost.md#long-scalar-shapes`. Rerun closed cost issues whose tests the change
+  deletes.
+- **Why.** A pointer builder quadratic in depth passed real specs and the full gate, and three
+  closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those shapes
+  read linear while references times size grew the output, which doubling one hides (#1191, #1240).
 - **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
+
+## Generate long scalars the change itself scans or splits
+`long-scalar-shapes`
+
+- **Rule.** Generate a long scalar the change itself reads, grown alone: one string holding many
+  repetitions of each delimiter or opening it scans for before one closing, and one pointer or path
+  of many tokens over a node each token re-reads.
+- **Why.** On #1375 (`1f38bae67` against `5b9aaebaf`), 8,000 repeated `{$request.body#/x` openings
+  before one `~2}` took 44.2G instructions against 0.16G on `main`, and 250,000 `/a` tokens over a
+  recursive model took over three minutes against 0.6 s (#1724).
+- **Probe.** `GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>` at n and 2n on base
+  and head (`references/finding-cost.md#instructions-not-wall-clock`, dropping `GOGC=off` only where
+  a generated scalar exceeds memory per `references/finding-cost.md#count-on-one-thread`).
 
 ## Grow each dimension a nested loop iterates on its own
 `grow-each-dimension-alone`
@@ -309,11 +335,24 @@ how to measure so the number means what the claim says.
 - **Rule.** Escape analysis is field-insensitive: storing a value in a heap slice moves its whole
   struct, and a method value on a large struct copies it into a closure. For a change to a hot
   lowering path, diff `go build -gcflags=-m` escape sites per package against `main`, and compare
-  allocations and bytes per compile on both trees.
+  allocations and bytes per compile on both trees; a getter read through a helper takes
+  `references/finding-cost.md#getter-through-a-helper-escapes`.
 - **Why.** A change cost every path item mount allocations and every reference bytes, invisible to
   the allocation counts its body quoted (#591).
 - **Probe.** `go build -gcflags=-m ./... 2>&1 | grep -E 'escapes to heap|moved to heap'` on both
   trees, diffed.
+
+## Ask an inlined getter by a predicate, not through a helper returning its value
+`getter-through-a-helper-escapes`
+
+- **Rule.** A helper returning what an inlined getter builds, such as the one-element slice a
+  parser's type getter makes for a one-type schema, moves it to the heap at every call. Where
+  callers ask only whether a value is written, give them a predicate over the getter, and find such
+  a cost by an allocation profile's diff before changing anything.
+- **Why.** A helper returning a parser getter's slice allocated at every schema read; two guessed
+  fixes moved nothing, and the profile's diff named the helper at once (#1217).
+- **Probe.** `go tool pprof -sample_index=alloc_objects -top -diff_base=<main's profile> <head's profile>`
+  over `-memprofile` runs of one benchmark on both trees.
 
 ## Range over reflect values without its iterators on a hot path
 `reflect-iterators-allocate`

@@ -88,7 +88,7 @@ func fillPropertyAnnotations(loweringContext lowering.Ctx, property *ir.Property
 	if LoweredToOwnNode(loweringContext, pointer, property.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(use.SiteAt(loweringContext, ref, pointer), pointer, loweringContext.Place())
+	a, diags := ReadAnnotations(loweringContext, use.SiteAt(loweringContext, ref, pointer), pointer)
 
 	property.Docs = a.Docs
 	if a.Deprecated {

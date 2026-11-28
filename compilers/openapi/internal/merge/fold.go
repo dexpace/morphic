@@ -40,6 +40,18 @@ type Merger struct {
 	// declaration stands within another's composition spends (ownership); nil
 	// reads without bound.
 	Reads *budget.Budget
+	// PrunedDiagnostics, when non-nil, records alternate messages for drop
+	// diagnostics naming an anonymous losing TypeID so post-settlement pruning
+	// can substitute them if and only if that TypeID is actually removed.
+	PrunedDiagnostics *[]PrunedDiagnostic
+	// Discarded, when non-nil, records every TypeID carried by a declaration
+	// that a fold superseded or dropped so post-settlement pruning can remove
+	// it if nothing else reaches it.
+	Discarded map[ir.TypeID]bool
+	// DiscardedSites, when non-nil, records source provenances whose losing
+	// declaration could not be preserved verbatim under Unmodeled so
+	// post-settlement pruning can seed any landings beneath them.
+	DiscardedSites *[]ir.Provenance
 	// Walk is the walk that declared the field.
 	Walk FieldDeclarationContext
 }
@@ -306,13 +318,13 @@ func newFolding(merger *Merger, decls []declaration, field jsontext.Pointer) *fo
 // its type (drop).
 func (f *folding) foldType() {
 	target := f.meetField()
+	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
+	f.merged.Type.Target = target
 	for i := range f.decls {
 		if !f.cone[i] {
 			f.drop(i)
 		}
 	}
-	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
-	f.merged.Type.Target = target
 	f.typeAt = f.g.typeSites(f.merged, f.decls)
 }
 
@@ -339,6 +351,17 @@ func (f *folding) meetField() ir.TypeID {
 	return b.meetNode(base, partners, f.field, 0)
 }
 
+// PrunedDiagnostic pairs a drop diagnostic's full message (naming an anonymous
+// losing TypeID) with the replacement message to substitute after
+// post-settlement pruning if Loser is actually removed from Document.Types.
+type PrunedDiagnostic struct {
+	Code       string
+	Provenance ir.Provenance
+	Full       string
+	Pruned     string
+	Loser      ir.TypeID
+}
+
 // drop reports how decls[i]'s type, which the field does not hold, relates to
 // the winner's (typeJudge.relateFrom), even where nothing says how, since the type
 // the field keeps then follows declaration order; and it marks the declaration
@@ -349,21 +372,60 @@ func (f *folding) meetField() ir.TypeID {
 // things.
 func (f *folding) drop(i int) {
 	f.lost[i] = true
-	typeRef, irTypeRef := f.decls[f.winner].property.Type, f.decls[i].property.Type
+	kept, loser := f.merged.Type.Target, f.decls[i].property.Type.Target
+	anonLoser := isAnonymousType(f, loser)
 	switch f.rel[f.winner][i] {
 	case relDisjoint:
-		f.disagree(i, f.winner, fmt.Sprintf("incompatible types %s and %s", typeRef.Target, irTypeRef.Target))
+		fullDetail := fmt.Sprintf("incompatible types %s and %s", kept, loser)
+		f.disagree(i, f.winner, fullDetail)
+		if anonLoser {
+			prunedDetail := fmt.Sprintf("incompatible types (%s vs the declaration at %s)", kept, f.at(i))
+			last := f.notes[i][len(f.notes[i])-1]
+			recordPrunedDiagnostic(f, last.code, last.at, last.message,
+				strings.Replace(last.message, fullDetail, prunedDetail, 1), loser)
+		}
 	case relOverlap, secondTypeIsNarrower, relMeet:
-		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give types %s and %s whose values overlap but that the merge does not "+
-				"narrow to one; kept the type the declaration at %s gives over the one at %s, which %s",
-			f.merged.WireName, typeRef.Target, irTypeRef.Target, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+		dropDegraded(f, i, kept, loser, anonLoser, "whose values overlap but that the merge does not narrow to one")
 	default:
-		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-			"declarations of field %q give types %s and %s that the merge does not compare; kept the type the "+
-				"declaration at %s gives over the one at %s, which %s",
-			f.merged.WireName, typeRef.Target, irTypeRef.Target, f.at(f.winner), f.at(i), f.decls[i].keptAs())
+		dropDegraded(f, i, kept, loser, anonLoser, "that the merge does not compare")
 	}
+}
+
+// isAnonymousType reports whether id resolves in fold's registry to an
+// anonymous type.
+func isAnonymousType(fold *folding, id ir.TypeID) bool {
+	td, ok := fold.g.resolve(id)
+	return ok && td.Common().Anonymous
+}
+
+// dropDegraded records a degraded-construct drop diagnostic naming both kept
+// and loser, and registers the alternate location-based message to substitute
+// if post-settlement pruning removes an anonymous loser.
+func dropDegraded(fold *folding, i int, kept, loser ir.TypeID, anonLoser bool, relation string) {
+	full := fmt.Sprintf("declarations of field %q give types %s and %s %s; kept the type the declaration at %s gives over the one at %s, which %s",
+		fold.merged.WireName, kept, loser, relation, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
+	fold.note(i, ir.SeverityInfo, diag.DegradedConstruct, "%s", full)
+	if anonLoser {
+		last := fold.notes[i][len(fold.notes[i])-1]
+		pruned := fmt.Sprintf("declarations of field %q give types %s; kept %s (from %s) over the declaration at %s, which %s",
+			fold.merged.WireName, relation, kept, fold.at(fold.winner), fold.at(i), fold.decls[i].keptAs())
+		recordPrunedDiagnostic(fold, last.code, last.at, full, pruned, loser)
+	}
+}
+
+// recordPrunedDiagnostic appends an alternate post-pruning message to fold's
+// Merger.PrunedDiagnostics slice when the caller collects them.
+func recordPrunedDiagnostic(fold *folding, code string, at ir.Provenance, full, pruned string, loser ir.TypeID) {
+	if fold.g.PrunedDiagnostics == nil {
+		return
+	}
+	*fold.g.PrunedDiagnostics = append(*fold.g.PrunedDiagnostics, PrunedDiagnostic{
+		Code:       code,
+		Provenance: at,
+		Full:       full,
+		Pruned:     pruned,
+		Loser:      loser,
+	})
 }
 
 // disagree notes the conflicting-redeclaration warning at decls[i], which says

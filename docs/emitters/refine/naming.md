@@ -1,51 +1,151 @@
 # Naming and casing
 
-Identifier rendering is owned **exclusively** by refine, through a `naming.Policy` each target
-builds from its options. Its casing functions are the target's code. The tables they read — the
-acronyms, the character names and the leading words below — are heuristics whose every change
-renames identifiers, so each is a default of the target's options version, under the entries a
-configuration gives it ([target options](../contract/options.md)), which `DecodeOptions` merges key
-by key as it merges the type table ([type table](../contract/type-table.md)). They are not an
-`EmitterInput` field, for the reason the type table is not: each is one target's.
+Identifier rendering is owned **exclusively** by refine. What every target shares of it is package
+`emitters/naming`: functions over data a target states. The package holds the rules two targets
+must agree on, where a word ends, how a break is marked, which of two names takes a suffix, and
+holds no target's choices. A target states its choices as data: for each role a convention and
+what the role cannot begin with or hold, for each scope a comparison and the names it reserves, and
+its tables. The tables — the acronyms, the character names and the leading words below — are
+heuristics whose every change renames identifiers, so each is a default of the target's options
+version, under the entries a configuration gives it, merged key by key ([target
+options](../contract/options.md#three-kinds-of-versioned-data)). They are not an `EmitterInput`
+field, for the reason the type table is not: each is one target's
+([type table](../contract/type-table.md)).
 
 ```go
 package naming
-
-type Policy interface {
-    Case(words []Word, role Role) string  // Role: TypeName | Field | Method | Const | Param | Package
-    Acronyms() AcronymTable               // from the options
-    Reserved() ReservedSet                // the language's keywords and predeclared names
-    CharacterNames() CharacterNameTable   // from the options: character sequences → words, for a
-                                          // name with none
-    LeadingWord(role Role) string         // from the options: the word before an identifier that
-                                          // would begin with what its role cannot (below)
-    Unwritable(role Role) RuneSet         // the options version's: what an identifier of the role
-                                          // cannot hold as it stands, written in the target's form
-                                          // for one (below)
-}
 
 type Word struct {
     Canonical string // one word of Naming.Canonical: the boundaries, never re-derived
     Source    string // that word as Naming.Source spells it, letter case kept; "" when it has none
 }
 
-func Words(n ir.Naming) []Word // the one alignment every target uses
+// Words is the one alignment every target uses. hasWords is false for a name with none.
+func Words(name ir.Naming) (words []Word, hasWords bool)
+
+// CharacterNames maps a character sequence to its words, as one lower_snake string.
+type CharacterNames map[string]string
+
+// CharacterWords gives a name with no words those its characters' names give.
+func CharacterWords(source string, names CharacterNames) []Word
+
+// Convention is how a role cases and joins a name's words.
+type Convention struct {
+    First, Rest WordCase // Lower | Upper | Capital: the first word's case, and every other's
+    Join        string   // "" or "_"
+    Spelled     bool     // read a word's source spelling for its letter case
+}
+
+// Tables are what a rendering reads beside the words.
+type Tables struct {
+    Acronyms map[string]string // a canonical word → how a Capital position writes it
+    Case     CaseTables        // the letter case and the categories of a named Unicode version
+}
+
+// Role is the data a target states for one identifier role: a type, a field, a method, a
+// constant, a parameter. A package's name is a path name (PathName, below).
+type Role struct {
+    Convention    Convention
+    LeadingWord   string    // the word before an identifier that would begin with what Start
+                            // refuses (below)
+    Start         StartRule // NoDigitOrMark | UpperCaseLetterOnly
+    Unwritable    RuneSet   // what an identifier of the role cannot hold as it stands (below)
+    WrittenByName bool      // write each such character by its name; else keep it, for the
+                            // target to quote
+    PathCap       Cap       // the bytes of UTF-8 a name written into a path may take; the zero
+                            // Cap is a role written into no path
+}
+
+// Rendered is a name rendered for a role.
+type Rendered struct {
+    Identifier      string   // bare: never quoted
+    HoldsUnwritable bool     // it keeps a character Role.Unwritable holds
+    Inferred        []string // "leading-word", "character-names", "shortened", in that order
+}
+
+// Compose renders words under a convention, after prefix where it is not "": an owner's
+// identifier the role composes the name after, as Go's enum constant begins with its enum's name.
+// When prefix is non-empty, it stands in the first position, so every word of words takes Rest and
+// the boundary between prefix and the first word follows the same join and break rules.
+func Compose(prefix string, words []Word, convention Convention, tables Tables) (string, error)
+
+// Render composes, leads, writes by name and shortens, in that order, and then reads whether the
+// identifier it returns holds a character the role cannot. It refuses a non-empty prefix that
+// fails role.Start.
+func Render(prefix string, words []Word, role Role, tables Tables) (Rendered, error)
+
+// PathName renders words as a path segment names them (below). The zero Cap is uncapped.
+func PathName(words []Word, leadingWord string, limit Cap, tables CaseTables) (Rendered, error)
+
+// Scope is one scope's rules as data: how its names compare, Exact or Folded, the names it
+// reserves, and what a reserved name takes.
+type Scope struct{ /* built by a constructor, so its reserved names are held as it compares them */ }
+
+func NewScope(comparison Comparison, reserved []string, escapeSuffix string) (Scope, error)
+func NewScopeSuffixingReserved(comparison Comparison, reserved []string) (Scope, error)
+
+// Member is one name to resolve in a scope.
+type Member struct {
+    ID       string // the entity's ID, or the key of a symbol derived from one
+    Rendered string // its identifier, bare
+    Neutral  string // its canonical words, or the source of a name with none
+    Rank     int    // members are named by rank, then ID (below)
+}
+
+type Resolved struct {
+    Symbol            string // bare, as Rendered.Identifier is
+    Escaped, Suffixed bool
+}
+
+// Meeting is a member that took a suffix because it met another of a different neutral name.
+type Meeting struct{ Member, Met string } // IDs
+
+// Resolve names every member of one scope. meetings is sorted by Member.
+func Resolve(scope Scope, tables CaseTables, members []Member) (symbols map[string]Resolved, meetings []Meeting, err error)
 ```
+
+- **Everything a target states is data.** A role, a convention, a scope and a table are values, so
+  two targets differ by what they hand the package and never by a function it calls back. A naming
+  function frozen in the shared layer, which no target could swap, is the failure the evidence
+  records ([reference learnings](../../reference-learnings.md)), and a `Policy` interface each
+  target implemented, which stood here before, left the rules two targets must agree on to code
+  each wrote.
+- **Nothing is accepted in silence.** `Compose`, `Render`, `PathName` and the scope constructors
+  return an error for a value outside their vocabulary — a convention that leaves a break between
+  two words unmarked, one joining them with `""` whose `Rest` is not `Capital` or whose `First` is
+  `Upper` (`ABC` and `Def` make `ABCDef`), empty words, an uninitialized `CaseTables`, a
+  `Role.LeadingWord` that is empty or, cased as the role's first word, fails `Start` (or, for
+  `PathName`, a non-empty `leadingWord` that begins with a digit or a mark), a non-empty `prefix`
+  that fails the role's `Start`, being an identifier its owner's role rendered, which takes no
+  leading word, a comparison outside the two, an empty reserved name, or an empty `escapeSuffix` —
+  and `Resolve` for a list it cannot name: one ID twice, or an empty rendered name. The leading word
+  is checked as it is written, so version 1's `field` passes as Go's `Field`, and a role whose
+  `First` is `Lower` beside a `Start` of `UpperCaseLetterOnly`, which no leading word could satisfy,
+  is refused.
+- **The case tables are data too.** `CaseTables` holds the upper-case mapping and the categories
+  of one Unicode version, read from data in the package and never from the `unicode` package of
+  the Go release that builds Morphic
+  ([below](#a-character-a-target-cannot-write-is-written-by-its-name)), and a `RuneSet` is
+  categories and ranges. A `Cap` is built from a byte count of 16 or more, the room one character
+  and a hash take.
+- **A target calls `Resolve` once per scope**, in its own order, which is how Go settles the names
+  its files give their imports between two passes ([the refine layer](pipeline.md)) and how
+  Multiplatform resolves the Objective-C namespace as a second scope.
 
 The `Ident` on every AST node starts as the neutral `Naming.Canonical` word sequence — a *word
 sequence, not an identifier*. `Canonical` holds those words as one lower_snake string, and
 `naming.Words` splits them on `_`, the one separator its grammar admits
-([naming](../../ir/naming.md)), for `Case` to take each beside its source spelling (below).
+([naming](../../ir/naming.md)), for `Compose` to take each beside its source spelling (below).
 `RenderCasing` is the only step that cases it; because the IR stores the pre-split neutral words,
 there is no lossy runtime re-splitting of a cased string (oagen's `splitWords` counterexample).
 `EscapeReservedWords` runs after casing and **never touches `WireName`/`WireID`** — struct tags are
 built from the wire channel, so wire correctness never depends on the rendered identifier
-([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically in `Ctx.Syms`,
-which is keyed by IR ID, and against the names the prior generation shipped, so adding one endpoint
-never renames an existing method (the oagen collision-cascade counterexample; INV3;
-[collisions](#collisions-and-the-names-a-generation-shipped)). Those a target may meet, neutral
-names one scope shares and, in a scope a first target joins or folds, names whose words differ only
-where they break, the `names` pass reports to the document's author
+([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically by
+`naming.Resolve`, which keys each member by its IR ID, and against the names the prior generation
+shipped, so adding one endpoint never renames an existing method (the oagen collision-cascade
+counterexample; INV3; [collisions](#collisions-and-the-names-a-generation-shipped)). Those a target
+may meet, neutral names one scope shares and, in a scope a first target joins or folds, names whose
+words differ only where they break, the `names` pass reports to the document's author
 ([naming](../../ir/naming.md#names-one-scope-shares)), and resolving them stays here. Anonymous
 hoisted types get an emitter-chosen name from `Naming.Hint`. Per-service presentation renames
 (`Service.Renames`) change how a shape is presented in a service without changing its `TypeID` or
@@ -55,7 +155,8 @@ reordering members of distinct values renames none.
 
 ## Collisions, and the names a generation shipped
 
-Names that render alike in one scope collide, and `Ctx.Syms` tells them apart. Keying by ID and
+Names that render alike in one scope collide, and `naming.Resolve` tells them apart. Keying by ID
+and
 being deterministic are both needed and neither is enough: no rule reading only the current document
 can tell which of two colliding operations shipped first, so any such rule can rename the incumbent
 when a newcomer joins. A renamer that renames every member of a collision from its own identity is
@@ -85,17 +186,41 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    prior generation and stay apart. The scope, not the unit, is what is compared: by default every
    group's client is in the root unit, so an operation moved to another group would otherwise keep
    `get` beside the `get` that group's client already shipped.
-2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
-   else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
-   reserve: a suffix can make a reserved name, as `com2` is a Windows device name the units of Go
-   and Kotlin reserve ([Go](../targets/go/naming.md#reserved-names),
-   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set apart from
-   a name ending in a digit as its role sets two digit words apart ([a break letter case cannot
-   mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is `V12_2`. The
-   declaration a visibility shape adds to a type is named after every type's own in its scope, in
-   the order of its key ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)), so among the
-   names this rule gives, one the plan derives never takes one the source gives. A shape's name rule
-   1 keeps is kept like any other, against a source name added since.
+2. **Every other member, by rank and then ID**, takes its rendered name where nothing in the scope
+   holds it, else that name with the lowest numeric suffix, `2` up, that nothing holds and the
+   scope does not reserve: a suffix can make a reserved name, as `com2` is a Windows device name
+   the units of Go and Kotlin reserve ([Go](../targets/go/naming.md#reserved-names),
+   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix follows `_` after a name ending
+   in a digit, in every scope, since `Resolve` reads no role, as a camel or Pascal role sets two
+   digit words apart ([a break letter case cannot
+   mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is `V12_2`, and
+   what a digit is the tables say, never the building release. A member's rank is its target's to
+   give, and the order within a rank is the ID's, whatever order the members arrive in. The
+   declaration a visibility shape adds to a type ranks after every type's own in its scope, and is
+   named there in the order of its key ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)),
+   so among the names this rule gives, one the plan derives never takes one the source gives,
+   though its key sorts first. A shape's name rule 1 keeps is kept like any other, against a source
+   name added since.
+
+`Resolve` is rule 2 until the manifest holds entities: the name a generation shipped reaches it as
+a member's `Shipped`, a plain value the target fills from the prior manifest, which joins `Member`
+with them (M4), so `naming` never reads a manifest and rule 1 arrives with no change to a caller.
+
+The lowest suffix is found without searching from `2` for each member. `Resolve` keeps, for each
+name as its scope compares it, the next suffix to try, and gives the symbols the search would: the
+names a scope holds only grow while it is resolved, so a suffix once found held, reserved or taken
+stays so. Names sharing one name by the thousand are real input. `k` members sharing a name make
+`k(k-1)/2` probes searched from `2` and `k-1` with the counter, which over the golden spec's
+30,773 model, enum, union and scalar types, taken as one scope by their neutral names, the largest
+group 3,432 types, is 10,263,929 probes against 20,797 (spec @68d5d773, morphic @9be567bdb):
+
+```bash
+morphic compile openapi.json -o ir.json   # exits 1 on the spec's errors and still writes
+jq -c '[.types[] | select(.kind=="model" or .kind=="enum" or .kind=="union" or .kind=="scalar")
+        | (.name.canonical // .name.hint // "")] | group_by(.) | map(length)
+       | {types: add, largest: max, from_2: (map(. * (. - 1) / 2) | add),
+          counter: (map(. - 1) | add)}' ir.json
+```
 
 In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
 names that fold alike collide too. A file system that ignores case, as macOS's and Windows' do by
@@ -123,12 +248,15 @@ one scope: an acronym or a source spelling upper-cases more of a word than its f
 source spelling](#the-source-spelling-for-letter-case-only)), upper-casing gives two letters one
 capital, as it does `ı` and `i` and each of the 22 letters Go 1.27.3 upper-cases to another's
 capital, and a leading word or a character's name adds words (below). The `names` pass compares
-words, so it reports such a pair only where it compares them joined. `Ctx.Syms` reports each name it
-gives a suffix because another holds its rendered identifier, or in a scope compared folded one that
-folds as it does, as `Strasse` does beside `Straße`, where the two names' neutral names differ, or,
-for two with no words, their spellings do, as a warning `emitters/naming/collision` naming both
-entities, the identifier each rendered to and the one each was given, so a scope of `n` names draws
-fewer than `n` ([T-39](../testing/mandatory-tests.md)). So a target keeps names of different words
+words, so it reports such a pair only where it compares them joined. `Resolve` returns, as a
+`Meeting`, each name it gives a suffix because another holds its rendered identifier, or in a scope
+compared folded one that folds as it does, as `Strasse` does beside `Straße`, where the two names'
+neutral names differ, or, for two with no words, their spellings do. The target reports each as a
+warning `emitters/naming/collision` naming both entities, the identifier each rendered to and the
+one each was given, so a scope of `n` names draws fewer than `n`
+([T-39](../testing/mandatory-tests.md)). The code is the shared package's, which a target relays
+([codes](../contract/emitter.md#the-codes-a-target-reports)). So a target keeps names of different
+words
 apart or says where it did not, under every table a configuration gives it. In a scope the pass
 compares joined, both can report one pair: the pass's warning says the two may meet on some target,
 and this one that they met on this target, and which took the suffix.
@@ -152,29 +280,45 @@ variable is renamed ([correlation keys](../../ir/derived-facts.md#correlation-ke
 The prior manifest is an input like any other, so a generation is still a pure function of its
 inputs ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).
 
+## A name is rendered bare and quoted last
+
+`Render` and `Resolve` hold every identifier bare. A target whose language quotes a name, as
+Kotlin's backticks do around a hard keyword or a character its lexer refuses, quotes as its last
+step, after collisions are resolved: `Rendered.HoldsUnwritable` says which names hold such a
+character, and no symbol `Resolve` returns holds a quote. So a reserved name's escape and a
+collision's suffix land inside the quotes, a second `café` spelled with U+0301 being
+`` `café2` `` and never `` `café`2 ``, and two names are compared as the language compares them,
+without the quotes that are no part of either.
+
 ## The source spelling, for letter case only
 
-`Case` receives each canonical word beside the spelling the source gave it.
+`Compose` receives each canonical word beside the spelling the source gave it.
 [naming](../../ir/naming.md) derives `Canonical` from `Source` by one grammar, which lives in `ir`
 (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
 (`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar. `ir` has one
 reading of a name into its words as written, and `CanonicalWords` is their lowercased join; `ir`
-gains a sibling of `CanonicalWords` that returns those words, so each spelling aligns with its
+gains `SourceWords`, its sibling, which returns those words, so each spelling aligns with its
 canonical word and no emitter carries a second copy of the grammar. A name with no `Source` — one
 built from a hint — has no spellings, and neither has a `Naming` the grammar does not derive, which
-`Words` leaves unspelled rather than guess. A policy may read a spelling to recover the letter case
-of a word whose boundaries the canonical form already fixes: `iOSVersion` is `i_os_version` and
-`HTTPServer2FA` is `http_server_2_fa`, and the spellings `i`, `OS`, `Version` and `HTTP`, `Server`,
-`2`, `FA` let a policy render `IOSVersion` and `HTTPServer2FA`, where casing the words gives
-`IOsVersion` and `HttpServer2Fa` and an acronym table would have to capitalize `os` and `fa` in
-every name. It never reads one to find a boundary — the words are fixed before any spelling is read
-— so the rule against re-splitting a cased string holds. Ignoring the spellings is conforming, and
-the acronym table applies either way.
+`Words` leaves unspelled rather than guess. A convention may read a spelling (`Spelled`) to recover
+the letter case of a word whose boundaries the canonical form already fixes: `iOSVersion` is
+`i_os_version` and `HTTPServer2FA` is `http_server_2_fa`, and the spellings `i`, `OS`, `Version` and
+`HTTP`, `Server`, `2`, `FA` let such a role render `IOSVersion` and `HTTPServer2FA`, where casing
+the words gives `IOsVersion` and `HttpServer2Fa` and an acronym table would have to capitalize `os`
+and `fa` in every name. It never reads one to find a boundary — the words are fixed before any
+spelling is read — so the rule against re-splitting a cased string holds. Ignoring the spellings is
+conforming, and the acronym table applies either way. The table and a spelling are read in a
+`Capital` position alone: there a word the table holds is written as its entry says, whatever its
+spelling, one it lacks as the source spells it, its first character upper-cased, where the
+convention reads spellings, and any other cased. A `Lower` or an `Upper` position gives the
+canonical word that case and reads neither, so a camel role's first word stays lower: `id_token`
+under an acronym `ID` is `idToken`.
 
 An acronym or a spelling can make two names meet: `iOSVersion` and `IOSVersion`, of words
 `i_os_version` and `ios_version`, both render `IOSVersion` once their spellings are read, and
-`user_id` under an acronym `ID` renders `UserID`, as `user_i_d` does with none. `Ctx.Syms` tells
-such a pair apart and reports it ([collisions](#collisions-and-the-names-a-generation-shipped)).
+`user_id` under an acronym `ID` renders `UserID`, as `user_i_d` does with none. `Resolve` tells
+such a pair apart and the target reports it
+([collisions](#collisions-and-the-names-a-generation-shipped)).
 Reading a spelling or an acronym only where the identifier, read back by the grammar, gives the
 name's words, or writing `_` where it would not, keeps every pair apart unreported, at a cost real
 names show: of the 106,743 names with words that the golden spec's source spells in its declared
@@ -204,7 +348,7 @@ becomes one word, `u` and its code point in lowercase hex, four digits at least 
 `u00a7` for `§`). The words have no source spelling, so they are cased as a hint's are, and the node
 they name carries `Inferred` provenance, `character-names` (INV6). The words read nothing but the
 name, as `EnumMember.ID` reads nothing but the value, so reordering an enum renames none of its
-members. Two names that meet — `=` and `==` are both `equal` — are `Ctx.Syms`'s, like any other
+members. Two names that meet — `=` and `==` are both `equal` — are `Resolve`'s, like any other
 collision.
 
 The table is one of the naming tables, so a configuration may replace any entry of it, and a
@@ -255,38 +399,45 @@ identifier as it stands. Measured over every one past ASCII, the 145,620 letters
   builds no module, so a Swift file using none of its names fails as well (`could not build
   Objective-C module 'Probe'`).
 
-`RenderCasing` settles an identifier before it writes any character another way. `Case` reads the
-grammar's words beside their spellings and the tables, the role composes the identifier, and the
-leading word and the underscore below are decided on that identifier, which still holds the name's
-own characters. The target's form for a character the role cannot hold as it stands comes last, so
-it changes nothing those read:
+`RenderCasing` settles an identifier before any character is written another way. `Compose` reads
+the grammar's words beside their spellings and the tables, the role's convention composes the
+identifier, and the leading word and the underscore below are decided on that identifier, which
+still holds the name's own characters. Only then does `Render` act on a character the role cannot
+hold as it stands — before the length cap ([below](#a-name-too-long-for-a-path-is-shortened)), so
+it changes nothing those read — by rewriting it on Go or keeping it on Kotlin, where quoting waits
+until collisions are resolved ([above](#a-name-is-rendered-bare-and-quoted-last)).
+`Rendered.HoldsUnwritable` is read last, off the identifier `Render` returns, since the cap can drop
+every such character with the words it cuts:
 
-- **Go** writes each such character where it stands in its word, as the character-name table writes
-  a character it does not hold: `u`, in lower case wherever it falls, and its code point in
-  lowercase hex, four digits at least (`u0301`, `u10570`). A decomposed `café` is the field
-  `Cafeu0301`, `नाम`, whose `ा` is U+093E DEVANAGARI VOWEL SIGN AA, `Field_नu093eम` (below), a
-  property of U+0301 and `x`, whose word begins with the mark, `Field_u0301x`, and a group `名前` the
-  package `u540du524d`. The node carries `Inferred` provenance, `character-names`, as a name with no
-  words does.
-- **Kotlin** writes the identifier in backticks and keeps every character: a property `` `café` ``,
-  a class `` `नाम` ``, and for a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no part of a name,
-  in a class file or in the header, so the node is marked nothing, a caller writes them where its
-  own compiler needs them, and they go around the identifier as the later steps leave it, since a
-  reserved name's underscore and a collision's suffix neither add such a character nor remove one. A
-  KDoc link writes them too, around each such segment: Dokka 2.3.0 linked ``[`नाम`.`café`]`` and
-  left `[नाम]` plain text. What backticks cannot hold is ASCII punctuation, a backtick and a line
-  break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:` and `\` on the JVM and a further
-  thirteen on Native), none of which an identifier holds: a word is letters, marks and digits, and a
-  name with none is named in ASCII (above). A Java caller writes such a name where its JDK's tables
-  hold each character, as javac 25 did `नाम` and the decomposed `café`; Java 25's lack 4,709 of the
-  code points above. A unit's name, a package segment and a module's directory too, is rendered as
-  the target's naming document says ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
+- **Go** sets `Role.WrittenByName` and writes each such character where it stands in its word, as
+  the character-name table writes a character it does not hold: `u`, in lower case wherever it
+  falls, and its code point in lowercase hex, four digits at least (`u0301`, `u10570`). A decomposed
+  `café` is the field `Cafeu0301`, `नाम`, whose `ा` is U+093E DEVANAGARI VOWEL SIGN AA,
+  `Field_नu093eम` (below), a property of U+0301 and `x`, whose word begins with the mark,
+  `Field_u0301x`, and a group `名前` the package `u540du524d`. The node carries `Inferred` provenance,
+  `character-names`, as a name with no words does.
+- **Kotlin** leaves `Role.WrittenByName` false so `Render` keeps every character bare and shortens
+  under the bare identifier, which sets `Rendered.HoldsUnwritable` where one such character is left;
+  after `ResolveCollisions`, the target wraps the final symbol in backticks: a property
+  `` `café` ``, a class `` `नाम` ``, and for a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no
+  part of a name, in a class file or in the header, so the node is marked nothing, a caller writes
+  them where its own compiler needs them, and quoting last puts a reserved name's underscore and a
+  collision's suffix inside them, since neither adds such a character nor removes one. A KDoc link
+  writes them too, around each such segment: Dokka 2.3.0 linked ``[`नाम`.`café`]`` and left `[नाम]`
+  plain text. What backticks cannot hold is ASCII punctuation, a backtick and a line break (kotlinc
+  refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:` and `\` on the JVM and a further thirteen on
+  Native), none of which an identifier holds: a word is letters, marks and digits, and a name with
+  none is named in ASCII (above). A Java caller writes such a name where its JDK's tables hold each
+  character, as javac 25 did `नाम` and the decomposed `café`; Java 25's lack 4,709 of the code
+  points above. A unit's name, a package segment and a module's directory too, is rendered as the
+  target's naming document says ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
 Which characters a role cannot hold as they stand is a table of the target's options version, read
 from its toolchain and no configuration's to replace: on Go a toolchain that learns a mark would
 otherwise rename every identifier holding it, and on Kotlin a later table moves only where backticks
-are written ([target options](../contract/options.md)). The letter case `Case` gives a character,
-and the categories the tests below read, are tables of that version as well, Unicode 17.0.0's in
+are written ([target options](../contract/options.md)). The letter case `Compose` gives a
+character, and the categories the tests below read, are tables of that version as well, Unicode
+17.0.0's in
 version 1, which Go's language floor reads identifiers by
 ([Go](../targets/go/overview.md#the-language-floor)), and never the `unicode` package's of the Go
 release that builds Morphic: `unicode.ToUpper` differs between Go 1.26.3 and Go 1.27.3 at 55 code
@@ -296,7 +447,7 @@ name would hold U+2E2F keeps its Kotlin name, which a JVM caller shares, and tak
 Objective-C name instead, in ASCII, each character past it written as Go writes one
 ([Swift](../targets/kotlin/swift.md)); none begins with a mark, since a name that would takes a
 leading word (below). A name that meets another so, as a Go property `cafeu0301` meets the
-decomposed `café`, is `Ctx.Syms`'s, and reported
+decomposed `café`, is `Resolve`'s, and reported
 ([collisions](#collisions-and-the-names-a-generation-shipped)). T-54 holds every class above.
 
 Composing a decomposed letter with its mark (Unicode NFC) was not taken: it gives `café` its `é`,
@@ -330,20 +481,23 @@ package read none of the fields `名前`, `ʰx`, `ßx`, `ᾼx` and, past the BMP
 unexported field 名前`), and read `Ꭰx`, `𝐀x` and `ℤx`, which begin with upper-case letters.
 
 Where the identifier a role composes would begin with a character the role cannot begin with,
-`RenderCasing` puts the policy's leading word for that role before its words, and the node it names
-carries `Inferred` provenance, `leading-word` (INV6). That is a digit or a mark in every role, and
-on Go, in a role it exports, a type, a field, a method or a constant, any character but an
-upper-case letter (category `Lu`). The test reads the identifier once cased and before any character
-is written by its name ([above](#a-character-a-target-cannot-write-is-written-by-its-name)), so a
-word beginning with a mark takes the word on every target, where Go's would else begin with the `u`
-of the mark's name. The test reads the composed identifier, not the name: a Go enum constant begins
-with its enum's name ([Go enums](../targets/go/types.md#enums)), so `Code` and `1000` make
-`Code1000` and need no word, where a Kotlin entry is the member's name alone and takes one. A hint
-is held to the same test. A parameter and a package, which Go leaves unexported, and every Kotlin
-role, which takes `名前` as it is, take a word before a digit or a mark alone. Leaving such a Go name
-unexported was not taken, since a caller outside its package could neither set nor read it, nor was
-writing Kotlin's in backticks as it stands, a name javac cannot write and the Objective-C export
-renames or, before a mark, cannot write.
+`RenderCasing` puts the role's leading word before its words, as their first word and cased so, and
+the node it names carries `Inferred` provenance, `leading-word` (INV6). That is a digit or a mark in
+every role, and on Go, in a role it exports, a type, a field, a method or a constant, any character
+but an upper-case letter (category `Lu`). The test reads the identifier once cased and before any
+character is written by its name
+([above](#a-character-a-target-cannot-write-is-written-by-its-name)), so a word beginning with a
+mark takes the word on every target, where Go's would else begin with the `u` of the mark's name.
+The test reads the composed identifier, not the name: a Go enum constant begins with its enum's name
+([Go enums](../targets/go/types.md#enums)), so `Code` and `1000` make `Code1000` and need no word,
+where a Kotlin entry is the member's name alone and takes one. A prefix never takes the word: it is
+an identifier its owner's role already rendered, and `Render` refuses one that fails the role's
+`Start` (above), so a composed identifier begins either with a prefix that passes or with the name's
+own words. A hint is held to the same test. A parameter and a package, which Go leaves unexported,
+and every Kotlin role, which takes `名前` as it is, take a word before a digit or a mark alone.
+Leaving such a Go name unexported was not taken, since a caller outside its package could neither
+set nor read it, nor was writing Kotlin's in backticks as it stands, a name javac cannot write and
+the Objective-C export renames or, before a mark, cannot write.
 
 The words are a naming table too, one per role, and like the character names a default of the
 target's options version ([target options](../contract/options.md)). Version 1's are `type` for a
@@ -351,7 +505,7 @@ type, `field` for a field, `call` for a method, `value` for a constant, `arg` fo
 `pkg` for a package, so the examples render `Field1000`, `Type10GbpsTo100Gbps` and Kotlin's
 `VALUE_10002`, and `名前` is Go's field `Field_名前`, a word beginning with a letter of no case taking
 `_` before it ([a break](#a-break-letter-case-cannot-mark-takes-an-underscore)). A word that makes
-one name meet another — `Field1000` beside a property spelled `field_1000` — is `Ctx.Syms`'s, like
+one name meet another — `Field1000` beside a property spelled `field_1000` — is `Resolve`'s, like
 any collision, and reported. T-19 holds the digit test and T-54 the mark's and Go's export.
 
 ## A break letter case cannot mark takes an underscore
@@ -365,7 +519,8 @@ a lower-case one with no upper-case form such as `ß` — so a word beginning wi
 both its constant `Version10`, though their words differ, and words are what the `names` pass
 compares ([names one scope shares](../../ir/naming.md#names-one-scope-shares)).
 
-Where a word after the first begins with such a character, `Case` writes `_` before it, unless one
+Where a word after the first begins with such a character, `Compose` writes `_` before it, unless
+one
 of the two characters the break falls between is a letter and the other a digit: the grammar breaks
 wherever those meet ([the word grammar](../../ir/naming.md#the-word-grammar)), so no word holds one
 beside the other and nothing need set them apart. The pairs above render `V1_2` beside `V12` and
@@ -381,7 +536,7 @@ in `v1386.go`, which Go builds on every platform, where `v1_386.go` would build 
 So two names whose words differ only where they break render apart in a camel or Pascal role whose
 words are each cased by their first character alone, and the pass's exact comparison answers for
 them. An acronym or a spelling that upper-cases more of a word can still make two meet, which
-`Ctx.Syms` reports ([collisions](#collisions-and-the-names-a-generation-shipped)), and a package,
+the target reports ([collisions](#collisions-and-the-names-a-generation-shipped)), and a package,
 which joins every word, drops this break with the rest, a pair the pass reports where it compares
 words joined ([names one scope shares](../../ir/naming.md#names-one-scope-shares)). A Multiplatform
 SDK's Objective-C export writes a Kotlin constant's Swift name in camel case, dropping each `_`, so
@@ -391,8 +546,8 @@ explicit name is written in ASCII, `a_u65e5u672c`, beside `A日本`'s `a日本`
 ([Swift](../targets/kotlin/swift.md)).
 
 Leaving the break unmarked was not taken, though it keeps the camel names Go and Kotlin write
-without an underscore. The two names would collide, and `Ctx.Syms` would tell them apart by ID
-order: `1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version102`, each
+without an underscore. The two names would collide, and `Resolve` would tell them apart by ID
+order: `1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version10_2`, each
 constant reading as another value, which no warning of the pass could set right. Go's standard
 library writes the underscore between two digit words itself (`sha512.Sum512_256`), and golint's
 naming rule, which revive's `var-naming` keeps, accepts it there while reporting one between two
@@ -411,23 +566,40 @@ class's name to its outer's by `$` (`Payment$Card.class`), and the classes kotli
 them, such as the continuation of each `suspend` method, named for the method (`Client$getA$1.class`
 with Kotlin 2.4.0). No segment past 255 bytes is one every file system writes ([emit
 rules](../emit/rules.md)). So `RenderCasing` holds each identifier of a role a target writes into a
-path, as its naming document names them ([Go](../targets/go/naming.md#package-directories),
-[Kotlin](../targets/kotlin/naming.md#reserved-names)), to a cap, 110 bytes of UTF-8 in version 1, a
-default of the target's options version as the naming tables are. A longer identifier keeps the
-leading words that fit beside one more, the first eight hex digits of the SHA-256 of the identifier
-whole, a first word too long alone being cut at a character's end, and the node carries `Inferred`
-provenance, `shortened` (INV6), with a warning `emitters/<target>/name-shortened` naming the entity
-and both names. The shortened name reads nothing but the name, so it moves only with it, and two
-names that keep the same words still differ in their last. A path the target names apart from any
-identifier, as Go names a declaration's file, is shortened as its target says, and the identifier is
-not ([Go](../targets/go/naming.md#file-names)).
+path, as its naming document names them ([Kotlin](../targets/kotlin/naming.md#reserved-names)), to
+a cap, the role's `PathCap`, 110 bytes of UTF-8 in version 1, a default of the target's options
+version as the naming tables are; Go has no such role, its package being a path name (below). A
+longer identifier keeps the leading words that fit beside one more, the first eight hex digits of
+the SHA-256 of the identifier whole, a first word too long alone being cut at a character's end,
+and the node carries `Inferred` provenance, `shortened` (INV6), with a warning
+`emitters/<target>/name-shortened` naming the entity and both names. The hash is a word like any
+other, cased by the role's convention and set off by `_` where a break needs one, as after a name
+ending in a digit. The shortened name reads nothing but the name, so it moves only with it, and two
+names that keep the same words still differ in their last.
 
-The cap measures the identifier as casing writes it, backticks aside, and the hash reads that
-identifier whole rather than `Naming.Canonical`, which a name with no words and a type named from a
+The cap measures the identifier as it is written, backticks aside, so shortening is the last change
+`Render` makes: it composes, leads, writes a character by its name where the role does, and only
+then shortens. A character's name is longer than the character, so an identifier shortened before
+it was written so could pass its cap. The hash reads that identifier whole, as it would be written
+unshortened, rather than `Naming.Canonical`, which a name with no words and a type named from a
 hint lack, and which holds no word a role or the plan adds: `____________` and `_____________`,
 twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type's `Create` and
 `UpdatePatch` declarations ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)) their type's
 words alone. T-53 holds it.
+
+A name a target writes as a path segment apart from any identifier, as Go names a package's
+directory and a declaration's file and Kotlin a unit ([Go](../targets/go/naming.md#file-names),
+[Kotlin](../targets/kotlin/naming.md#reserved-names)), is `naming.PathName`'s, one rendering for
+every target: the words joined with no separator and folded by the path fold; a name that would then
+begin with a digit or a mark (read from `CaseTables` before any character is written by its name, as
+`Render` checks `Start`) led by its role's folded word where the target gives one, as Go gives a
+package `pkg` and a file none; and then each character outside `a`–`z` and `0`–`9` written as `u` and
+its code point in lowercase hex, four digits at least. So a group beginning with U+0301 and `x` is
+the package `pkgu0301x`, and `名前` is `u540du524d`. Past a non-zero cap it keeps its first bytes,
+the cap less eight, and the first eight hex digits of the SHA-256 of the whole. It is cut by bytes
+and not at a word, since a name joined and folded shows no word to keep, and it takes the cap itself
+because writing by name lengthens it: 30 Cyrillic letters are 150 bytes so written. It lists what
+it inferred as `Render` does, so a target reports `name-shortened` without deriving it again.
 
 The cap leaves room for two names joined, what the naming steps add to each after the cap and what
 the Kotlin toolchain adds to both. The naming steps add at most 8 bytes to a name, an `_`, the
@@ -457,5 +629,5 @@ Refusing the run was not taken: a valid spec would generate nothing, where short
 readability of a name no reader takes in whole. Nor was a cap on the segment rather than the name,
 since a nested name's room would read its outer's length, so renaming a union would shorten its
 variants, and an outer near the limit would leave its variants none. Nor was cutting with no hash:
-two names that keep the same leading words would meet, and `Ctx.Syms` would part them by ID order,
+two names that keep the same leading words would meet, and `Resolve` would part them by ID order,
 giving each a name that reads as the other's.
