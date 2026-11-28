@@ -76,7 +76,6 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Component":   factAPI,
 	"ir/irfacts.DocumentFacts.Correlation": factAPI,
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
-	"pathfold.Fold":                        pathAPI,
 	"pathfold.Portable":                    pathAPI,
 	"emitters/manifest.Decode":             manifestAPI,
 	"emitters/manifest.Encode":             manifestAPI,
