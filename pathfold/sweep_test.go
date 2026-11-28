@@ -19,6 +19,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/cases"
@@ -35,9 +36,10 @@ type sweepInput struct {
 }
 
 type apfsRecord struct {
-	tables string
-	sweeps map[string]sweepRecord
-	apart  map[string][][][]string
+	tables  string
+	sweeps  map[string]sweepRecord
+	apart   map[string][][][]string
+	refused []string
 }
 
 type sweepRecord struct {
@@ -47,14 +49,16 @@ type sweepRecord struct {
 }
 
 // TestFold_JoinsWhatAPFSJoins holds pathfold.Fold to the partition of names
-// that a case-insensitive APFS volume collapses into one file across both T-52
-// sweeps, verifies every weaker fold parts at least one file, and checks
-// idempotence across all generated names. The record at
-// testdata/apfs.golden.txt is rewritten only on macOS with -update.
+// that a case-insensitive APFS volume collapses into one file across the T-52
+// sweeps, verifies every weaker fold parts at least one file, checks
+// idempotence across all generated names, and holds pathfold.Portable to the
+// code points APFS refused. The record at testdata/apfs.golden.txt is
+// rewritten only on macOS with -update.
 func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
 	sweeps := []sweepInput{
 		{name: "characters", names: generateCharacterSweep()},
 		{name: "sequences", names: generateSequenceSweep()},
+		{name: "mark-runs", names: generateMarkRunSweep()},
 	}
 	recordPath := filepath.Join("testdata", "apfs.golden.txt")
 
@@ -99,6 +103,13 @@ func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
 			checkWeakerFoldsSplitFiles(t, sweeps, partitions)
 		})
 	}
+
+	t.Run("refused code points", func(t *testing.T) {
+		if record.tables != currentTablesLine() {
+			t.Skip("the record was made under other Unicode tables")
+		}
+		checkRefusedCodePoints(t, record.refused)
+	})
 
 	t.Run("idempotent", func(t *testing.T) {
 		for _, sweep := range sweeps {
@@ -208,6 +219,68 @@ func generateSequenceSweep() []string {
 	return slices.Compact(out)
 }
 
+// maxMarksInARow is the longest run of marks a sweep may write: APFS writes 31
+// and refuses 32, and creating a refused name of 34 marks in a directory
+// holding files spun at full CPU without returning.
+const maxMarksInARow = 31
+
+// generateMarkRunSweep draws runs of 28 to 31 marks that decompose to
+// themselves, behind a starter, each beside every spelling with two
+// neighbouring marks swapped: the lengths at which norm.NFD's stream-safe
+// form cuts a run, and the swaps canonical order makes one or keeps apart.
+func generateMarkRunSweep() []string {
+	marks := make([]rune, 0, 1_000)
+	for r := rune(1); r <= unicode.MaxRune; r++ {
+		if !utf8.ValidRune(r) || unicode.Is(unicode.Cn, r) {
+			continue
+		}
+		character := string(r)
+		if norm.NFD.String(character) == character && norm.NFD.PropertiesString(character).CCC() != 0 {
+			marks = append(marks, r)
+		}
+	}
+
+	const (
+		draws    = 1_000
+		minMarks = 28
+	)
+	starters := []string{"a", "Q", "\u0915"}
+	source := rand.NewPCG(2223, 31)
+	out := make([]string, 0, draws*maxMarksInARow)
+	for range draws {
+		length := minMarks + source.Uint64()%(maxMarksInARow-minMarks+1)
+		run := make([]rune, length)
+		for index := range run {
+			run[index] = marks[source.Uint64()%uint64(len(marks))]
+		}
+		starter := starters[source.Uint64()%uint64(len(starters))]
+		out = append(out, starter+string(run))
+		for index := range len(run) - 1 {
+			swapped := slices.Clone(run)
+			swapped[index], swapped[index+1] = swapped[index+1], swapped[index]
+			out = append(out, starter+string(swapped))
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// longestMarkRun counts the longest run of marks in name's decomposition, each
+// character decomposed alone, which orders no mark and so moves none across a
+// starter.
+func longestMarkRun(name string) int {
+	longest, current := 0, 0
+	for _, character := range decomposeEachRuneAlone(name) {
+		if norm.NFD.PropertiesString(string(character)).CCC() == 0 {
+			current = 0
+			continue
+		}
+		current++
+		longest = max(longest, current)
+	}
+	return longest
+}
+
 func reverseMarks(input string) string {
 	runes := []rune(input)
 	for start := 0; start < len(runes); {
@@ -236,10 +309,17 @@ func decomposeEachRuneAlone(input string) string {
 
 func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 	t.Helper()
+	for _, sweep := range sweeps {
+		for _, name := range sweep.names {
+			require.LessOrEqual(t, longestMarkRun(name), maxMarksInARow,
+				"sweep %s: %+q holds more marks in a row than APFS writes", sweep.name, name)
+		}
+	}
 	assertCaseAndNormInsensitiveVolume(t)
 
 	var out bytes.Buffer
-	out.WriteString("# which names APFS made one file, for TestFold_JoinsWhatAPFSJoins; rewritten on macOS by -update\n")
+	out.WriteString("# which names APFS made one file and which code points it refused, for TestFold_JoinsWhatAPFSJoins; " +
+		"rewritten on macOS by -update\n")
 	fmt.Fprintf(&out, "tables %s\n", currentTablesLine())
 
 	var apartBuffer bytes.Buffer
@@ -255,7 +335,90 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 		}
 	}
 	out.Write(apartBuffer.Bytes())
+	for _, line := range codePointRanges(refusedOnAPFS(t)) {
+		fmt.Fprintf(&out, "refused %s\n", line)
+	}
 	return out.Bytes()
+}
+
+// refusedOnAPFS creates, in an empty directory, a file named a and each code
+// point from U+0080 that UTF-8 encodes, removing each it writes, and reports
+// whether APFS refused each.
+func refusedOnAPFS(t *testing.T) func(rune) bool {
+	t.Helper()
+	dir := t.TempDir()
+	refused := make([]bool, unicode.MaxRune+1)
+	for r := rune(0x80); r <= unicode.MaxRune; r++ {
+		if !utf8.ValidRune(r) {
+			continue
+		}
+		target := filepath.Join(dir, "a"+string(r))
+		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			require.NotErrorIs(t, err, fs.ErrExist, "create %+q", target)
+			refused[r] = true
+			continue
+		}
+		require.NoError(t, file.Close(), "close %+q", target)
+		require.NoError(t, os.Remove(target), "remove %+q", target)
+	}
+	return func(r rune) bool { return refused[r] }
+}
+
+// codePointRanges lists the code points from U+0080 that UTF-8 encodes and
+// holds says hold, as START..END lines of uppercase hex, or one code point
+// alone where a range holds one.
+func codePointRanges(holds func(rune) bool) []string {
+	var lines []string
+	start, end, inRange := rune(0), rune(0), false
+	flush := func() {
+		if !inRange {
+			return
+		}
+		inRange = false
+		if start == end {
+			lines = append(lines, fmt.Sprintf("%04X", start))
+			return
+		}
+		lines = append(lines, fmt.Sprintf("%04X..%04X", start, end))
+	}
+	for r := rune(0x80); r <= unicode.MaxRune; r++ {
+		if !utf8.ValidRune(r) || !holds(r) {
+			flush()
+			continue
+		}
+		if !inRange {
+			start, inRange = r, true
+		}
+		end = r
+	}
+	flush()
+	return lines
+}
+
+// checkRefusedCodePoints holds the code points APFS refused to those the
+// tables leave unassigned, and pathfold.Portable to refusing exactly those
+// behind an a.
+func checkRefusedCodePoints(t *testing.T, recorded []string) {
+	t.Helper()
+	unassigned := func(r rune) bool { return unicode.Is(unicode.Cn, r) }
+	require.Empty(t, cmp.Diff(codePointRanges(unassigned), recorded),
+		"code points APFS refused, unassigned ones (-want +got)")
+
+	const maxReported = 10
+	disagreements := 0
+	for r := rune(0x80); r <= unicode.MaxRune; r++ {
+		if !utf8.ValidRune(r) {
+			continue
+		}
+		if refused := pathfold.Portable("a"+string(r)) != nil; refused != unassigned(r) {
+			disagreements++
+			if disagreements <= maxReported {
+				t.Errorf("Portable(%+q) refused=%v, APFS refused=%v", "a"+string(r), refused, unassigned(r))
+			}
+		}
+	}
+	assert.Zero(t, disagreements, "code points Portable and APFS disagree on")
 }
 
 func assertCaseAndNormInsensitiveVolume(t *testing.T) {
@@ -421,6 +584,8 @@ func parseAPFSRecord(t *testing.T, recordPath string, raw []byte) apfsRecord {
 		case "apart":
 			name, groups := parseApartLine(t, recordPath, lineNumber+1, rest)
 			record.apart[name] = append(record.apart[name], groups)
+		case "refused":
+			record.refused = append(record.refused, rest)
 		default:
 			t.Fatalf("%s:%d: unknown record kind %q", recordPath, lineNumber+1, kind)
 		}
@@ -561,6 +726,7 @@ func checkWeakerFoldsSplitFiles(t *testing.T, sweeps []sweepInput, partitions ma
 		{name: "each character decomposed alone", fold: foldEachCharacterAlone},
 		{name: "cases.Fold without upper-casing", fold: foldWithoutUpperCasing},
 		{name: "ASCII letters alone", fold: foldASCIILettersAlone},
+		{name: "norm.NFD alone", fold: foldWithNFDAlone},
 	}
 	for _, variant := range weaker {
 		totalSplits := 0
@@ -588,6 +754,10 @@ func countSplitNames(names []string, partition [][]int, fold func(string) string
 
 func foldEachCharacterAlone(name string) string {
 	return cases.Fold().String(strings.Map(unicode.ToUpper, decomposeEachRuneAlone(name)))
+}
+
+func foldWithNFDAlone(name string) string {
+	return cases.Fold().String(strings.Map(unicode.ToUpper, norm.NFD.String(name)))
 }
 
 func foldWithoutUpperCasing(name string) string {

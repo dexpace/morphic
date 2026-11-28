@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -39,6 +40,10 @@ func TestFold_JoinsWhatAFileSystemMakesOnePath(t *testing.T) {
 		{name: "composed and decomposed e acute", first: "\u00e9", second: "e\u0301"},
 		{name: "canonical mark order", first: "q\u0323\u0307", second: "q\u0307\u0323"},
 		{name: "Cherokee case pair", first: "\u13a0", second: "\uab70"},
+		{name: "mark order at 30 marks", first: markOrder(29, true), second: markOrder(29, false)},
+		{name: "mark order at 31 marks", first: markOrder(30, true), second: markOrder(30, false)},
+		{name: "mark order at 32 marks", first: markOrder(31, true), second: markOrder(31, false)},
+		{name: "mark order at 101 marks", first: markOrder(100, true), second: markOrder(100, false)},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -46,6 +51,16 @@ func TestFold_JoinsWhatAFileSystemMakesOnePath(t *testing.T) {
 			assert.Equal(t, pathfold.Fold(row.first), pathfold.Fold(row.second), "%q vs %q", row.first, row.second)
 		})
 	}
+}
+
+// markOrder spells b, then acutes acute accents and one dot below, the dot
+// last or first: marks of two classes in two orders, which canonical order
+// makes one.
+func markOrder(acutes int, dotLast bool) string {
+	if dotLast {
+		return "b" + strings.Repeat("\u0301", acutes) + "\u0323"
+	}
+	return "b\u0323" + strings.Repeat("\u0301", acutes)
 }
 
 // TestFold_JoinsAPairAPFSKeepsApart pins the one pair from the APFS sweeps that
@@ -67,6 +82,11 @@ func TestFold_KeepsApartWhatItMust(t *testing.T) {
 		{name: "non-spacing mark", first: "caf\u00e9", second: "cafe"},
 		{name: "spacing combining mark", first: "\u0928\u093e\u092e", second: "\u0928\u092e"},
 		{name: "format character", first: "x\u200dy", second: "xy"},
+		{
+			name:   "marks of one class swapped at 31 marks",
+			first:  "b" + strings.Repeat("\u0301", 29) + "\u0300\u0301",
+			second: "b" + strings.Repeat("\u0301", 29) + "\u0301\u0300",
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -93,6 +113,65 @@ func TestFold_ReadsAByteThatIsNotUTF8AsAReplacementCharacter(t *testing.T) {
 			assert.Equal(t, pathfold.Fold(row.want), pathfold.Fold(row.input), "%q", row.input)
 		})
 	}
+}
+
+// TestDecomposeUncut_EqualsNFDWhereNFDCutsNothing holds the decomposition
+// Fold takes past norm.NFD's cut to norm.NFD itself wherever that cuts
+// nothing: each assigned character before two marks, and seeded strings of
+// marks and starters.
+func TestDecomposeUncut_EqualsNFDWhereNFDCutsNothing(t *testing.T) {
+	t.Parallel()
+	inputs := make([]string, 0, 320_000)
+	for r := range rune(unicode.MaxRune + 1) {
+		if utf8.ValidRune(r) && !unicode.Is(unicode.Cn, r) {
+			inputs = append(inputs, string(r)+"\u0323\u0301")
+		}
+	}
+	inputs = append(inputs, generateMarkHeavyStrings()...)
+
+	const maxReported = 10
+	mismatches := 0
+	for _, input := range inputs {
+		if norm.NFD.String(input) == pathfold.DecomposeUncut(input) {
+			continue
+		}
+		mismatches++
+		if mismatches <= maxReported {
+			t.Errorf("DecomposeUncut(%+q) = %+q, norm.NFD gives %+q", input, pathfold.DecomposeUncut(input), norm.NFD.String(input))
+		}
+	}
+	assert.Zero(t, mismatches, "of %d inputs", len(inputs))
+}
+
+// generateMarkHeavyStrings draws strings of up to 12 characters, three in four
+// a mark, from a fixed seed, keeping those norm.NFD cuts nothing in.
+func generateMarkHeavyStrings() []string {
+	starters := []rune{'a', '\u00e9', '\u1100', '\u1161', '\uac01', '\u0915', '\u1e9b', '\u034f', '\u212b'}
+	marks := make([]rune, 0, 1_000)
+	for r := range rune(unicode.MaxRune + 1) {
+		if utf8.ValidRune(r) && !unicode.Is(unicode.Cn, r) && norm.NFD.PropertiesString(string(r)).CCC() != 0 {
+			marks = append(marks, r)
+		}
+	}
+	const draws = 50_000
+	source := rand.NewPCG(2223, 12)
+	out := make([]string, 0, draws)
+	var builder strings.Builder
+	for range draws {
+		builder.Reset()
+		for range 1 + source.Uint64()%12 {
+			if source.Uint64()%4 == 0 {
+				builder.WriteRune(starters[source.Uint64()%uint64(len(starters))])
+				continue
+			}
+			builder.WriteRune(marks[source.Uint64()%uint64(len(marks))])
+		}
+		drawn := builder.String()
+		if strings.Count(norm.NFD.String(drawn), "\u034f") == strings.Count(drawn, "\u034f") {
+			out = append(out, drawn)
+		}
+	}
+	return out
 }
 
 // TestFold_IsIdempotent holds Fold(Fold(r)) == Fold(r) for every valid Unicode

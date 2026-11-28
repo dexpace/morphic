@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -23,9 +24,10 @@ const (
 // returning nil if so or an error wrapping [ErrNotPortable] naming the first
 // rule broken (docs/emitters/emit/rules.md).
 //
-// Refused segments are empty, invalid UTF-8, longer than 255 bytes, contain a
-// control character below U+0020 or a Windows-forbidden character, end in a
-// dot or a space, or name a Windows device before the first dot.
+// Refused segments are empty, invalid UTF-8, longer than 255 bytes, hold a
+// control character below U+0020, a Windows-forbidden character, a code point
+// the build's Unicode tables leave unassigned or a run of marks norm.NFD cuts,
+// end in a dot or a space, or name a Windows device before the first dot.
 func Portable(segment string) error {
 	if segment == "" {
 		return fmt.Errorf("segment %.64q is empty: %w", segment, ErrNotPortable)
@@ -40,6 +42,13 @@ func Portable(segment string) error {
 		if r < 0x20 || strings.ContainsRune(windowsForbiddenCharacters, r) {
 			return fmt.Errorf("segment %.64q holds %q, which Windows refuses in a name: %w", segment, r, ErrNotPortable)
 		}
+		if unicode.Is(unicode.Cn, r) {
+			return fmt.Errorf("segment %.64q holds %U, which Unicode leaves unassigned: %w", segment, r, ErrNotPortable)
+		}
+	}
+	if _, cut := decomposeStreamSafe(segment); cut {
+		return fmt.Errorf("segment %.64q holds more marks in a row than Unicode's stream-safe form: %w",
+			segment, ErrNotPortable)
 	}
 	last := segment[len(segment)-1]
 	if last == '.' || last == ' ' {

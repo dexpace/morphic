@@ -13,6 +13,8 @@ import (
 	"github.com/dexpace/morphic/pathfold"
 )
 
+const streamSafePhrase = "holds more marks in a row than Unicode's stream-safe form"
+
 func TestPortable_RefusesWhatSomeFileSystemRefuses(t *testing.T) {
 	t.Parallel()
 	rows := []struct {
@@ -76,6 +78,15 @@ func TestPortable_RefusesWhatSomeFileSystemRefuses(t *testing.T) {
 		{name: "aux before two dots", segment: "aux.v1.go", wantPhrase: `is the Windows device name "aux"`},
 		{name: "nul before space and dot", segment: "nul .txt", wantPhrase: `is the Windows device name "nul"`},
 		{name: "aux before space and two dots", segment: "aux .tar.gz", wantPhrase: `is the Windows device name "aux"`},
+		{name: "unassigned U+0378", segment: "a\u0378", wantPhrase: "holds U+0378, which Unicode leaves unassigned"},
+		{name: "noncharacter U+FFFF", segment: "a\uffff", wantPhrase: "holds U+FFFF, which Unicode leaves unassigned"},
+		{name: "noncharacter U+FFFE", segment: "a\ufffe", wantPhrase: "holds U+FFFE, which Unicode leaves unassigned"},
+		{name: "noncharacter U+FDD0", segment: "a\ufdd0", wantPhrase: "holds U+FDD0, which Unicode leaves unassigned"},
+		{name: "noncharacter U+10FFFF", segment: "a\U0010ffff", wantPhrase: "holds U+10FFFF, which Unicode leaves unassigned"},
+		{name: "31 marks", segment: "a" + strings.Repeat("\u0301", 31), wantPhrase: streamSafePhrase},
+		{name: "32 marks", segment: "a" + strings.Repeat("\u0301", 32), wantPhrase: streamSafePhrase},
+		{name: "31 marks counting a composed letter's", segment: "\u00e9" + strings.Repeat("\u0301", 30), wantPhrase: streamSafePhrase},
+		{name: "31 marks counting decomposed ones", segment: "a\u0301" + strings.Repeat("\u0344", 15), wantPhrase: streamSafePhrase},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -109,6 +120,15 @@ func TestPortable_Admits(t *testing.T) {
 		{name: "pending manifest temporary name", segment: ".morphic.manifest.pending.json.tmp"},
 		{name: "leading double dot", segment: "..a"},
 		{name: "non-ASCII letter", segment: "\u00e9"},
+		{name: "30 marks", segment: "a" + strings.Repeat("\u0301", 30)},
+		{name: "30 marks counting a composed letter's", segment: "\u00e9" + strings.Repeat("\u0301", 29)},
+		{name: "30 marks counting decomposed ones", segment: "a" + strings.Repeat("\u0344", 15)},
+		{name: "30 marks either side of U+034F", segment: "a" + strings.Repeat("\u0301", 30) + "\u034f" + strings.Repeat("\u0301", 30)},
+		{name: "private use U+E000", segment: "a\ue000"},
+		{name: "C1 control U+0085", segment: "a\u0085"},
+		{name: "delete U+007F", segment: "a\u007f"},
+		{name: "leading byte-order mark", segment: "\ufeffa"},
+		{name: "bidi override U+202E", segment: "a\u202e"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
