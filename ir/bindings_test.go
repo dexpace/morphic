@@ -34,8 +34,8 @@ func TestOperationBindings_JSONContract(t *testing.T) {
 }
 
 // TestOperationBindings_Inbound holds Inbound to a request the API sends: any
-// HTTP binding marking one, not only the primary, whatever its kind and with
-// no webhook name, and no other binding.
+// HTTP binding marking one, whether before or after a client binding,
+// whatever its kind and with no webhook name, and no other binding.
 func TestOperationBindings_Inbound(t *testing.T) {
 	t.Parallel()
 	client := ir.HTTPBinding{Method: "POST", URITemplate: "/orders"}
@@ -50,6 +50,7 @@ func TestOperationBindings_Inbound(t *testing.T) {
 		{"webhook-without-name", ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST", Inbound: ir.HTTPInboundWebhook}}}, true},
 		{"callback", ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST", Inbound: ir.HTTPInboundCallback}}}, true},
 		{"inbound-after-client", ir.OperationBindings{HTTP: []ir.HTTPBinding{client, {Method: "POST", Inbound: ir.HTTPInboundCallback}}}, true},
+		{"inbound-before-client", ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST", Inbound: ir.HTTPInboundCallback}, client}}, true},
 		{"message-and-rpc", ir.OperationBindings{
 			Message: &ir.MessageBinding{Channel: "c/x", Direction: ir.MessageDirectionReceive},
 			RPC:     &ir.RPCBinding{System: "grpc", FullMethod: "/pkg.Service/Method"},
