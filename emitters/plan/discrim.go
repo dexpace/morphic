@@ -92,8 +92,8 @@ func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.D
 	routes := routeTable{}
 	for _, variant := range union.Variants {
 		target := variant.Type.Target
-		td, declared := types[target]
-		if !declared || ir.IsNilTypeDef(td) || td.Common().Name.Source == "" {
+		td := types[target]
+		if ir.IsNilTypeDef(td) || td.Common().Name.Source == "" {
 			continue
 		}
 		routes.add(td.Common().Name.Source, target)
