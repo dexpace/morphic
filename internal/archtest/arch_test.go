@@ -796,18 +796,56 @@ func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 }
 
 // TestAudits_ReturnsAnyOtherWalkErrorAsTheWalkGaveIt holds audits to its
-// promise for an error that is no missing file: a base beneath a regular file,
-// whose walk fails with ENOTDIR, comes back as filepath.WalkDir gave it.
+// promise for an error that is no missing file, at each place
+// filepath.WalkDir reports one: a base it cannot stat, as one beneath a
+// regular file, and a directory it cannot read, the base or one beneath it.
+// Each comes back as filepath.WalkDir gave it.
 func TestAudits_ReturnsAnyOtherWalkErrorAsTheWalkGaveIt(t *testing.T) {
 	t.Parallel()
-	regularFile := filepath.Join(t.TempDir(), "regular")
-	require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
-	baseBeneathAFile := filepath.Join(regularFile, "emitters")
-	walkErr := filepath.WalkDir(baseBeneathAFile, func(_ string, _ fs.DirEntry, err error) error { return err })
-	require.Error(t, walkErr, "a base beneath a regular file")
-	require.NotErrorIs(t, walkErr, fs.ErrNotExist, "the walk fails other than on a missing file")
-	assert.Equal(t, walkErr, audits("emitters", baseBeneathAFile),
-		"a walk error other than a missing file comes back as the walk gave it")
+	for _, tc := range []struct {
+		name string
+		base func(t *testing.T) string
+	}{
+		{"a base beneath a regular file", func(t *testing.T) string {
+			regularFile := filepath.Join(t.TempDir(), "regular")
+			require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
+			return filepath.Join(regularFile, "emitters")
+		}},
+		{"a base it cannot read", func(t *testing.T) string {
+			base := filepath.Join(t.TempDir(), "emitters")
+			createUnreadableDirectory(t, base)
+			return base
+		}},
+		{"a directory beneath the base it cannot read", func(t *testing.T) string {
+			require.NotContains(t, rules, "emitters/stray", "the unreadable directory must carry no rule")
+			base := filepath.Join(t.TempDir(), "emitters")
+			createUnreadableDirectory(t, filepath.Join(base, "stray"))
+			return base
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base := tc.base(t)
+			walkErr := filepath.WalkDir(base, func(_ string, _ fs.DirEntry, err error) error { return err })
+			require.Error(t, walkErr)
+			require.NotErrorIs(t, walkErr, fs.ErrNotExist, "the walk fails other than on a missing file")
+			assert.Equal(t, walkErr, audits("emitters", base),
+				"a walk error other than a missing file comes back as the walk gave it")
+		})
+	}
+}
+
+// createUnreadableDirectory creates dir as a directory whose entries cannot be
+// read, restoring its mode when the test ends so its temporary directory can
+// be removed. It skips the test for root, who reads the directory anyway.
+func createUnreadableDirectory(t *testing.T, dir string) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permission checks, so the walk would read the directory")
+	}
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.Chmod(dir, 0))
+	t.Cleanup(func() { assert.NoError(t, os.Chmod(dir, 0o700)) })
 }
 
 // unbuiltSkip decides a ruled directory from auditErr, what audits answered
