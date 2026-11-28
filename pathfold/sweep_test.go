@@ -294,7 +294,7 @@ func writtenOnAPFS(t *testing.T, names []string) []string {
 	dir := t.TempDir()
 	lines := make([]string, 0, len(names))
 	for _, name := range names {
-		require.LessOrEqual(t, marksInARowBeforeWriting(name), maxMarksInARow, "%+q holds more marks in a row than APFS writes", name)
+		require.LessOrEqual(t, longestMarkRunEachCharacterAlone(name), maxMarksInARow, "%+q holds more marks in a row than APFS writes", name)
 		target := filepath.Join(dir, name)
 		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		require.NoError(t, err, "create %+q", name)
@@ -304,11 +304,11 @@ func writtenOnAPFS(t *testing.T, names []string) []string {
 	return lines
 }
 
-// marksInARowBeforeWriting counts the longest run of marks in name's
+// longestMarkRunEachCharacterAlone counts the longest run of marks in name's
 // decomposition, each character decomposed alone, which orders no mark and so
 // moves none across a starter. It is counted apart from Portable's count, so a
 // defect there cannot let a sweep write a name the volume hangs on.
-func marksInARowBeforeWriting(name string) int {
+func longestMarkRunEachCharacterAlone(name string) int {
 	longest, current := 0, 0
 	for _, character := range decomposeEachRuneAlone(name) {
 		if norm.NFD.PropertiesString(string(character)).CCC() == 0 {
@@ -319,6 +319,25 @@ func marksInARowBeforeWriting(name string) int {
 		longest = max(longest, current)
 	}
 	return longest
+}
+
+// TestLongestMarkRunEachCharacterAlone_CountsMarksInTheDecomposition pins the
+// guard that keeps every sweep within the marks in a row APFS writes.
+func TestLongestMarkRunEachCharacterAlone_CountsMarksInTheDecomposition(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name string
+		text string
+		want int
+	}{
+		{name: "32 acute accents", text: strings.Repeat("\u0301", 32), want: 32},
+		{name: "a composed sign and 30 marks", text: "\u0385" + strings.Repeat("\u0316", 30), want: 31},
+		{name: "16 vowel signs of two marks each", text: strings.Repeat("\u0f73", 16), want: 32},
+		{name: "a letter alone", text: "a", want: 0},
+	}
+	for _, row := range rows {
+		assert.Equal(t, row.want, longestMarkRunEachCharacterAlone(row.text), row.name)
+	}
 }
 
 func reverseMarks(input string) string {
@@ -351,7 +370,7 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 	t.Helper()
 	for _, sweep := range sweeps {
 		for _, name := range sweep.names {
-			require.LessOrEqual(t, marksInARowBeforeWriting(name), maxMarksInARow,
+			require.LessOrEqual(t, longestMarkRunEachCharacterAlone(name), maxMarksInARow,
 				"sweep %s: %+q holds more marks in a row than APFS writes", sweep.name, name)
 		}
 	}
