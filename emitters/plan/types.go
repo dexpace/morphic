@@ -66,11 +66,11 @@ const (
 	UnionKeyTagged UnionShape = "key_tagged"
 )
 
-// typePlans returns the plan of every type in types under pp. An entry that
+// typePlans returns the plan of every type in types under policy. An entry that
 // holds no type, a nil one, plans as the zero TypePlan. No flattening is
 // bounded: each model holds its own, so the plan grows with the square of a
 // composition's depth (GitHub #2206).
-func typePlans(types ir.TypeRegistry, pp Policy) map[ir.TypeID]TypePlan {
+func typePlans(types ir.TypeRegistry, policy Policy) map[ir.TypeID]TypePlan {
 	if len(types) == 0 {
 		return nil
 	}
@@ -87,7 +87,7 @@ func typePlans(types ir.TypeRegistry, pp Policy) map[ir.TypeID]TypePlan {
 			typePlan.flatten(ir.FlattenedProperties(types, id))
 		case *ir.Union:
 			typePlan.Union = unionShape(t)
-			typePlan.Strict = typePlan.Union == UnionOneOf && pp.StrictExclusive
+			typePlan.Strict = typePlan.Union == UnionOneOf && policy.StrictExclusive
 		default:
 			// No other kind composes members or has a wire shape to classify.
 		}

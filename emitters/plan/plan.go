@@ -46,7 +46,7 @@ func (p *Plan) MarshalJSONTo(enc *jsontext.Encoder) error {
 	return nil
 }
 
-// Build derives the plan of doc under pp. It is pure: it writes neither doc
+// Build derives the plan of doc under policy. It is pure: it writes neither doc
 // nor facts, and one document under one policy builds one plan. A nil doc
 // plans as an empty one. The findings are the plan's own, coded
 // emitters/plan/…, and the document's are left where they are.
@@ -54,13 +54,13 @@ func (p *Plan) MarshalJSONTo(enc *jsontext.Encoder) error {
 // facts are doc's derived facts. No field built so far reads them: the
 // shapes a document exercises a type in and the groups reaching it, which
 // follow, do.
-func Build(doc *ir.Document, _ *irfacts.DocumentFacts, pp Policy) (*Plan, []ir.Diagnostic) {
+func Build(doc *ir.Document, _ *irfacts.DocumentFacts, policy Policy) (*Plan, []ir.Diagnostic) {
 	if doc == nil {
 		doc = &ir.Document{}
 	}
-	built := &Plan{Types: typePlans(doc.Types, pp), Policy: pp}
+	built := &Plan{Types: typePlans(doc.Types, policy), Policy: policy}
 
-	version, err := versionOf(doc, pp)
+	version, err := versionOf(doc, policy)
 	if err != nil {
 		return built, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, codeUnencodable,
 			fmt.Sprintf("the document has no canonical JSON, so its plan has no version: %v", err),
