@@ -793,7 +793,13 @@ func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 
 	writeImporter(t, filepath.Join(base, "contract.go"), "fmt")
 	require.NoError(t, audits("emitters", base), "a Go file of its own")
+}
 
+// TestAudits_ReturnsAnyOtherWalkErrorAsTheWalkGaveIt holds audits to its
+// promise for an error that is no missing file: a base beneath a regular file,
+// whose walk fails with ENOTDIR, comes back as filepath.WalkDir gave it.
+func TestAudits_ReturnsAnyOtherWalkErrorAsTheWalkGaveIt(t *testing.T) {
+	t.Parallel()
 	regularFile := filepath.Join(t.TempDir(), "regular")
 	require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
 	baseBeneathAFile := filepath.Join(regularFile, "emitters")
