@@ -1634,3 +1634,14 @@ throughout these documents.
     `engine/target-experimental` and `engine/target-sunset`, naming the successor, are each
     reported once in a run over three snapshots ([target options](../contract/options.md), [the
     project](../contract/project.md), [the registry](../contract/registry.md)).
+78. **T-78 · Every node is data** — read through `internal/decls`, every field of every node kind of
+    each target AST has a type that is data: a basic type, an IR stable ID, `ir.Provenance`, a
+    struct or a pointer to one, a slice, array or map of data, or one of the AST's own sum
+    interfaces; a planted `func` field, a `chan`, an `any` and a pointer to an `ir` entity each fail
+    it, and a walk of each golden's AST from its root reaches no node twice ([the target
+    AST](../refine/target-ast.md#every-node-is-data)).
+79. **T-79 · The printer reads the AST alone** — each target's printer entry point takes the AST
+    and returns what it prints, and the printer's package, apart from the runtime templates', is
+    ruled in `internal/archtest` with none of `emitters/plan`, `ir/irfacts`, `emitters/options`,
+    `emitters/policy` and `emitters/hints` allowed; a planted import of any of them into it fails
+    ([printing](../emit/printing.md#the-printer-reads-the-ast-alone)).
