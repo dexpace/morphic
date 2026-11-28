@@ -160,6 +160,22 @@ func TestDecodeLayer_RefusesWhatIsNotAStrictObject(t *testing.T) {
 	}
 }
 
+// partlyEncoded holds a member its JSON form leaves out and one it holds as
+// raw JSON.
+type partlyEncoded struct {
+	Name   string         `json:"name,omitempty"`
+	Hidden string         `json:"-"`
+	Raw    jsontext.Value `json:"raw,omitempty"`
+}
+
+func TestDecodeLayer_CopiesWhatItsJSONFormHolds(t *testing.T) {
+	t.Parallel()
+	got, err := options.DecodeLayer(partlyEncoded{Name: "n", Hidden: "h"}, []byte(`{"raw":{"a":null}}`))
+	require.NoError(t, err, "a null inside a member held as raw JSON is that member's to judge")
+	want := partlyEncoded{Name: "n", Raw: jsontext.Value(`{"a":null}`)}
+	assert.Empty(t, cmp.Diff(want, got), "a member tagged - is not copied, and a raw member keeps what raw writes")
+}
+
 // unencodable holds a channel, which encodes only while it is nil and omitted.
 type unencodable struct {
 	Channel chan int `json:"channel,omitzero"`

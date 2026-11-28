@@ -14,12 +14,13 @@ import (
 var ErrNullMember = errors.New("member written null")
 
 // DecodeLayer reads raw, a JSON object stating no version, over a copy of
-// defaults, which it leaves unwritten: a map merges key by key and a struct
-// member by member. It refuses an unknown or repeated member, a name in
-// another case, invalid UTF-8 and every null, a pointer's included. A null is
-// an error wrapping ErrNullMember that names the member by its JSON pointer;
-// any other fault in raw is the error json gives. Defaults that do not survive
-// their own JSON form are an error too. On any error the value is the zero T.
+// defaults made through their JSON form, leaving defaults unwritten: a map
+// merges key by key and a struct member by member. A member that form leaves
+// out, as one tagged "-", is not copied, and defaults it cannot carry are an
+// error. It refuses an unknown or repeated member, a name in another case,
+// invalid UTF-8 and every null, a pointer's included, each by an error
+// wrapping ErrNullMember that names its JSON pointer; a jsontext.Value member
+// keeps what raw writes, nulls included. Any error returns the zero T.
 func DecodeLayer[T any](defaults T, raw []byte) (T, error) {
 	var zero T
 	layer, err := copyThroughJSON(defaults)
