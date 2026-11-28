@@ -82,28 +82,32 @@ binding writes whole under a `Style`, and a header under its `Style`, `simple` w
 A style can write a shape where OpenAPI's style table gives it a text: a list under every style but
 `deepObject`, and an object under every style, `deepObject` included at any `Explode`, while
 `spaceDelimited` or `pipeDelimited` writes either only where it does not explode; a style the table
-does not name writes neither. So under `deepObject` a string example of a list is judged, and one of
-an object is not. Such a string is not split on the style's delimiter and judged item by item or
-member by member, which would need each style's grammar. A number or a bool holds no delimiter, so
-it is judged as the list's one item: it is never an object's text, and is a list's text only where
-the style writes a list, the list's `minItems` and `maxItems` admit one item, and the element type
-holds that item, judged as a value of it is, whole numbers and bounds included, and as its text
-where the element settles to text, so `true` is four characters long. An element holding anything
-holds every item. Every other number or bool example of a list is judged: a bool for a list of
-numbers, a fraction for a list of integers, a number beyond its item's bounds or under a `minItems`
-of two, either for a tuple, whose items have no one type, and either for a list of an enum, a
-literal or a union, though it may be one of its items, since the check judges no item against such
-a type. No
-other binding writes a value in a style, so a parameter bound by RPC, a message, GraphQL or OTP, or
-by no binding, one a binding writes only a member of, and a property, has every scalar example of a
-list or an object judged, unless an encoding writes it. A default is a value of the type, written
-into code, and so is a scenario's input, which holds each parameter's value whatever its binding,
-and a type's own examples, which OpenAPI's Schema Object gives without regard to how a parameter is
-written, even where the type is a parameter's own: a style excuses none of them. An example's
-`Value` does not say which form it is in, so one position's examples may mix the two, and a scalar
-written as the list's or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged at such a
-position wherever it could be that value written out: telling the two apart needs `ir.Example` to
-record the form.
+does not name writes neither. It gives a value that text only where its items or members are leaves,
+types whose value travels as one string, number or boolean, as #1731 settled for the emitters
+([values as text](../emitters/refine/text.md#a-value-no-style-arranges)): a list or a tuple of
+leaves, a map of leaves, and a model whose flattened members and the values of every catch-all its
+flattening reads are leaves, a union of leaves being a leaf. So a string example of a list of
+objects or of lists, or of an object holding one, is judged under every style, and under
+`deepObject` one of a list is judged and one of an object of leaves is not. Such a string is not
+split on the style's delimiter and judged item by item or member by member, which would need each
+style's grammar. A number or a bool holds no delimiter, so it is judged as the list's one item: it
+is never an object's text, and is a list's text only where the style writes a list, the list's
+`minItems` and `maxItems` admit one item, and the element type holds that item, judged as a value of
+it is, whole numbers and bounds included, and as its text where the element settles to text, so
+`true` is four characters long. An element holding anything holds every item. Every other number or
+bool example of a list is judged: a bool for a list of numbers, a fraction for a list of integers, a
+number beyond its item's bounds or under a `minItems` of two, either for a tuple, whose items have
+no one type, and either for a list of an enum, a literal or a union, though it may be one of its
+items, since the check judges no item against such a type. No other binding writes a value in a
+style, so a parameter bound by RPC, a message, GraphQL or OTP, or by no binding, one a binding
+writes only a member of, and a property, has every scalar example of a list or an object judged,
+unless an encoding writes it. A default is a value of the type, written into code, and so is a
+scenario's input, which holds each parameter's value whatever its binding, and a type's own
+examples, which OpenAPI's Schema Object gives without regard to how a parameter is written, even
+where the type is a parameter's own: a style excuses none of them. An example's `Value` does not say
+which form it is in, so one position's examples may mix the two, and a scalar written as the list's
+or the object's data, as OpenAPI 3.2's `dataValue` is, goes unjudged at such a position wherever it
+could be that value written out: telling the two apart needs `ir.Example` to record the form.
 
 Not judged: a content's and a message's examples, which are in a media type's format, not the type's
 value (whether a JSON content's are held is #1949); a scenario's `Body` and `Output`, which are one

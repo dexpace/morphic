@@ -119,10 +119,11 @@ func withoutEmptyKeys(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 // in the order they report. Validate asks its context between two, so a cancel
 // waits out one family at most.
 //
-// A family allocates only for a diagnostic. It sorts and keys collections in a
-// list and a map it keeps for the run, so a value with nothing wrong costs it
-// nothing but a step those or a log may grow by. The index it asks, facts,
-// allocates per index it builds and not per type it indexes (GitHub #1150).
+// A family allocates only for a diagnostic, bar the model arranged flattens.
+// It sorts and keys collections in a list and a map it keeps for the run, so a
+// value with nothing wrong costs it nothing but a step those or a log may grow
+// by. The index it asks, facts, allocates per index it builds and not per type
+// it indexes (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.DocumentFacts) []func() []ir.Diagnostic {
 	// Sorted once for the run, and written by no family.
 	live := liveTypeIDs(doc)

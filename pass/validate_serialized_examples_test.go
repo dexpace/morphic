@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 // listT, objectT and mapT are the list of strings, the model and the map of
@@ -193,7 +194,8 @@ func boundedItems(base ir.TypeRef, element, list *ir.Constraints, value *ir.Valu
 // type, whole numbers and bounds included, as text where the element is text,
 // and accepted where it holds anything. It is judged where the element is a
 // type the check reads no further, and for a tuple, whose items have no one
-// type. A string is accepted whatever the element, being text a style may split.
+// type. A string is accepted whatever leaf the element is, being text a style
+// may split.
 func TestValidate_ANumberOrABoolIsOneItemOfAListsText(t *testing.T) {
 	t.Parallel()
 	asNumber := []finding{{"parameter/x/q", "example 0 is a number, and type/i holds a list"}}
@@ -474,6 +476,126 @@ func TestValidate_AHeadersSerializedExampleOfAListOrAnObjectIsAccepted(t *testin
 		{"a response's header of an object stating no style", headerOperation(object("", nil)), nil},
 		{"a response's header of an object under spaceDelimited, exploded", headerOperation(object("spaceDelimited", new(true))), objectJudged},
 		{"a model's property of an object", objectModel, objectJudged},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, found(t, tc.doc, exampleCode))
+		})
+	}
+}
+
+// holding is doc holding each of types under its own ID as well.
+func holding(doc *ir.Document, types ...ir.TypeDef) *ir.Document {
+	for _, td := range types {
+		doc.Types[td.Common().ID] = td
+	}
+	return doc
+}
+
+// unionOf is the union id whose variants are of the types variants.
+func unionOf(id ir.TypeID, variants ...ir.TypeRef) *ir.Union {
+	union := &ir.Union{ID: id, Provenance: provAt(string(id))}
+	for i := range variants {
+		union.Variants = append(union.Variants, ir.Variant{Type: variants[i]})
+	}
+	return union
+}
+
+// repeated is n copies of typ.
+func repeated(typ ir.TypeRef, n int) []ir.TypeRef {
+	out := make([]ir.TypeRef, n)
+	for i := range out {
+		out[i] = typ
+	}
+	return out
+}
+
+// TestValidate_AStringIsTheTextOfLeavesAlone holds a string example to be a
+// list's or an object's text only where its items or members are leaves, as
+// a style arranges nothing deeper (docs/emitters/refine/text.md): a list or a
+// tuple of leaves, a map of leaves, and a model whose flattened members and
+// catch-alls are leaves, a union of leaves being one, however deep, up to the
+// types leaf reads. A list or an object holding a list or an object has
+// every such string judged.
+func TestValidate_AStringIsTheTextOfLeavesAlone(t *testing.T) {
+	t.Parallel()
+	listJudged := []finding{{"parameter/x/q", "example 0 is a string, and type/i holds a list"}}
+	objectJudged := []finding{{"parameter/x/q", "example 0 is a string, and type/n holds an object"}}
+	unionT, innerT := ir.TypeRef{Target: "type/u"}, ir.TypeRef{Target: "type/v"}
+	itemsOf := func(element ir.TypeRef, types ...ir.TypeDef) *ir.Document {
+		return holding(itemOperation(element, text("a,b")), types...)
+	}
+	tupleOf := func(rest *ir.TypeRef, elements ...ir.TypeRef) *ir.Document {
+		return itemsOf(stringT, &ir.Tuple{ID: "type/i", ElementTypes: elements, Rest: rest, Provenance: provAt("type/i")})
+	}
+	modelOf := func(set func(*ir.Model), types ...ir.TypeDef) *ir.Document {
+		model := &ir.Model{ID: "type/n", Provenance: provAt("type/n")}
+		set(model)
+		doc := parameterOperation(ofType(ir.TypeRef{Target: "type/n"}, text("a,1")), bindsQ(styled("form", new(false))))
+		return holding(doc, append(types, model)...)
+	}
+	member := func(typ ir.TypeRef) func(*ir.Model) {
+		return func(model *ir.Model) { model.Properties = []ir.Property{property("property/n/a", typ, nil)} }
+	}
+	catchAll := func(additional ir.AdditionalProperties) func(*ir.Model) {
+		return func(model *ir.Model) { model.AdditionalProperties = &additional }
+	}
+	base := &ir.Model{ID: "type/b", Properties: []ir.Property{property("property/b/a", objectT, nil)}, Provenance: provAt("type/b")}
+	enum := &ir.Enum{ID: "type/e", ValueType: ir.PrimitiveString, Members: []ir.EnumMember{{ID: "enum-member/e/a", Value: *text("a")}},
+		Provenance: provAt("type/e")}
+	external := &ir.External{ID: "type/x", Identity: "x", Provenance: provAt("type/x")}
+	for _, tc := range []struct {
+		name string
+		doc  *ir.Document
+		want []finding
+	}{
+		{"a list of models", itemsOf(objectT), listJudged},
+		{"a list of lists", itemsOf(listT), listJudged},
+		{"a list of maps", itemsOf(mapT), listJudged},
+		{"a list of an enum", itemsOf(ir.TypeRef{Target: "type/e"}, enum), nil},
+		{"a list of anything", itemsOf(anyT), nil},
+		{"a list of an external type", itemsOf(ir.TypeRef{Target: "type/x"}, external), nil},
+		{"a list of a union of leaves", itemsOf(unionT, unionOf("type/u", stringT, intT)), nil},
+		{"a list of a union holding a list", itemsOf(unionT, unionOf("type/u", stringT, listT)), listJudged},
+		{"a list of a union of a union of leaves", itemsOf(unionT, unionOf("type/u", innerT), unionOf("type/v", stringT)), nil},
+		{"a list of a union of a union holding a model", itemsOf(unionT, unionOf("type/u", stringT, innerT), unionOf("type/v", objectT)),
+			listJudged},
+		{"a list of a union that is its own variant", itemsOf(unionT, unionOf("type/u", unionT)), listJudged},
+		{"a list of a union of as many leaves as are read", itemsOf(unionT, unionOf("type/u", repeated(stringT, pass.MaxLeafReads-1)...)), nil},
+		{"a list of a union of more leaves than are read", itemsOf(unionT, unionOf("type/u", repeated(stringT, pass.MaxLeafReads)...)),
+			listJudged},
+		{"a tuple of leaves", tupleOf(nil, stringT, intT), nil},
+		{"a tuple holding a model", tupleOf(nil, stringT, objectT), listJudged},
+		{"a tuple of leaves and a rest of leaves", tupleOf(&intT, stringT), nil},
+		{"a tuple of leaves and a rest of lists", tupleOf(&listT, stringT), listJudged},
+		{"a map of lists", holding(parameterOperation(ofType(ir.TypeRef{Target: "type/n"}, text("a,b")), bindsQ(styled("form", nil))),
+			&ir.MapT{ID: "type/n", Value: listT, Provenance: provAt("type/n")}), objectJudged},
+		{"a model of leaves", modelOf(member(intT)), nil},
+		{"a model holding a list", modelOf(member(listT)), objectJudged},
+		{"a model holding a model through its base", modelOf(func(model *ir.Model) {
+			model.Base = &ir.TypeRef{Target: "type/b"}
+		}, base), objectJudged},
+		{"a model composing a union", modelOf(func(model *ir.Model) {
+			model.Mixins = []ir.TypeRef{unionT}
+		}, unionOf("type/u", stringT)), objectJudged},
+		{"a model whose catch-all holds leaves", modelOf(catchAll(ir.AdditionalProperties{Value: &stringT})), nil},
+		{"a model whose catch-all holds lists", modelOf(catchAll(ir.AdditionalProperties{Value: &listT})), objectJudged},
+		{"a model whose pattern holds leaves", modelOf(catchAll(ir.AdditionalProperties{Patterns: []ir.PatternProperties{
+			{Pattern: "^a", Value: intT},
+		}})), nil},
+		{"a model whose pattern holds models", modelOf(catchAll(ir.AdditionalProperties{Value: &stringT, Patterns: []ir.PatternProperties{
+			{Pattern: "^a", Value: intT}, {Pattern: "^b", Value: objectT},
+		}})), objectJudged},
+		{"a model whose base's catch-all holds maps", modelOf(func(model *ir.Model) {
+			model.Base = &ir.TypeRef{Target: "type/b"}
+		}, &ir.Model{ID: "type/b", AdditionalProperties: &ir.AdditionalProperties{Value: &mapT}, Provenance: provAt("type/b")}), objectJudged},
+		{"a model holding a model under deepObject", holding(parameterOperation(ofType(ir.TypeRef{Target: "type/n"}, text("q[a]=1")),
+			bindsQ(styled("deepObject", nil))), &ir.Model{
+			ID: "type/n", Properties: []ir.Property{property("property/n/a", objectT, nil)}, Provenance: provAt("type/n"),
+		}), objectJudged},
+		{"a number of a list of lists", itemOperation(listT, number("1")), []finding{
+			{"parameter/x/q", "example 0 is a number, and type/i holds a list"},
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
