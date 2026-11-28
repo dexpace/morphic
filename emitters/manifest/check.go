@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	sha256HexLength    = 64
+	sha256HexLength = 64
+	// maxTemporaryDigits mirrors docs/emitters/write-integrate.md: a temporary
+	// file's name is a dot, its file's name and a number of up to 19 digits.
 	maxTemporaryDigits = 19
 )
 
@@ -99,21 +101,21 @@ func checkPending(pending Pending) error {
 }
 
 func checkPendingKnown(known map[string][]string) error {
-	for _, listed := range slices.Sorted(maps.Keys(known)) {
-		if err := checkFilePath(listed); err != nil {
+	for _, listedPath := range slices.Sorted(maps.Keys(known)) {
+		if err := checkFilePath(listedPath); err != nil {
 			return err
 		}
-		digests := known[listed]
+		digests := known[listedPath]
 		if len(digests) == 0 {
-			return fmt.Errorf("path %.64q has no digest", listed)
+			return fmt.Errorf("path %.64q has no digest", listedPath)
 		}
 		seenDigests := make(map[string]bool, len(digests))
 		for _, digest := range digests {
-			if err := checkDigest(listed, digest); err != nil {
+			if err := checkDigest(listedPath, digest); err != nil {
 				return err
 			}
 			if seenDigests[digest] {
-				return fmt.Errorf("path %.64q repeats digest %.64q", listed, digest)
+				return fmt.Errorf("path %.64q repeats digest %.64q", listedPath, digest)
 			}
 			seenDigests[digest] = true
 		}
@@ -123,72 +125,73 @@ func checkPendingKnown(known map[string][]string) error {
 
 func checkPendingTemporaryFiles(temporaryFiles []string, known map[string][]string) error {
 	seenTemporaryFiles := make(map[string]bool, len(temporaryFiles))
-	for _, listed := range temporaryFiles {
+	for _, listedFile := range temporaryFiles {
 		// Kept for its clearer message: checkTemporaryFile admits only a name beside a held path.
-		if err := checkLocalPath(listed); err != nil {
+		if err := checkLocalPath(listedFile); err != nil {
 			return err
 		}
-		if seenTemporaryFiles[listed] {
-			return fmt.Errorf("duplicate temporary file %.64q", listed)
+		if seenTemporaryFiles[listedFile] {
+			return fmt.Errorf("duplicate temporary file %.64q", listedFile)
 		}
-		seenTemporaryFiles[listed] = true
-		if err := checkTemporaryFile(listed, known); err != nil {
+		seenTemporaryFiles[listedFile] = true
+		if err := checkTemporaryFile(listedFile, known); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func checkFilePath(listed string) error {
-	if err := checkLocalPath(listed); err != nil {
+func checkFilePath(listedPath string) error {
+	if err := checkLocalPath(listedPath); err != nil {
 		return err
 	}
-	if isReservedPath(listed) {
-		return fmt.Errorf("path %.64q uses a reserved manifest name", listed)
+	if isReservedPath(listedPath) {
+		return fmt.Errorf("path %.64q uses a reserved manifest name", listedPath)
 	}
 	return nil
 }
 
-func checkLocalPath(listed string) error {
-	if strings.ContainsRune(listed, '\\') {
-		return fmt.Errorf("path %.64q contains a backslash", listed)
+func checkLocalPath(listedPath string) error {
+	if strings.ContainsRune(listedPath, '\\') {
+		return fmt.Errorf("path %.64q contains a backslash", listedPath)
 	}
-	if path.Clean(listed) != listed {
-		return fmt.Errorf("path %.64q is not clean", listed)
+	if path.Clean(listedPath) != listedPath {
+		return fmt.Errorf("path %.64q is not clean", listedPath)
 	}
-	if listed == "." {
-		return fmt.Errorf("path %.64q does not name a file", listed)
+	if listedPath == "." {
+		return fmt.Errorf("path %.64q does not name a file", listedPath)
 	}
-	if !filepath.IsLocal(filepath.FromSlash(listed)) {
-		return fmt.Errorf("path %.64q is not local", listed)
+	if !filepath.IsLocal(filepath.FromSlash(listedPath)) {
+		return fmt.Errorf("path %.64q is not local", listedPath)
 	}
 	return nil
 }
 
-func isReservedPath(listed string) bool {
-	first, _, _ := strings.Cut(listed, "/")
+func isReservedPath(listedPath string) bool {
+	first, _, _ := strings.Cut(listedPath, "/")
+	// The names are their own folds (TestFold_LeavesEachReservedNameAsWritten): fold first alone.
 	folded := pathfold.Fold(first)
 	return folded == FileName || folded == PendingName || folded == PendingTemporaryName
 }
 
-func checkDigest(listed, digest string) error {
+func checkDigest(listedPath, digest string) error {
 	hexDigits, ok := strings.CutPrefix(digest, digestPrefix)
 	if !ok || len(hexDigits) != sha256HexLength {
-		return fmt.Errorf("path %.64q has invalid digest %.64q", listed, digest)
+		return fmt.Errorf("path %.64q has invalid digest %.64q", listedPath, digest)
 	}
 	for i := range len(hexDigits) {
 		character := hexDigits[i]
 		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
-			return fmt.Errorf("path %.64q has invalid digest %.64q", listed, digest)
+			return fmt.Errorf("path %.64q has invalid digest %.64q", listedPath, digest)
 		}
 	}
 	return nil
 }
 
-func checkTemporaryFile(listed string, known map[string][]string) error {
-	dir, base := path.Split(listed)
+func checkTemporaryFile(listedFile string, known map[string][]string) error {
+	dir, base := path.Split(listedFile)
 	if !strings.HasPrefix(base, ".") {
-		return fmt.Errorf("temporary file %.64q must start with a dot in its base name", listed)
+		return fmt.Errorf("temporary file %.64q must start with a dot in its base name", listedFile)
 	}
 	rest := base[1:]
 	for digits := 1; digits <= maxTemporaryDigits && digits < len(rest); digits++ {
@@ -204,5 +207,5 @@ func checkTemporaryFile(listed string, known map[string][]string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("temporary file %.64q matches no known path or %s", listed, FileName)
+	return fmt.Errorf("temporary file %.64q matches no known path or %s", listedFile, FileName)
 }

@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
-	"maps"
 	"slices"
 )
 
@@ -63,10 +62,10 @@ func EncodePending(pending Pending) ([]byte, error) {
 	}
 	if len(pending.Known) > 0 {
 		canonical.Known = make(map[string][]string, len(pending.Known))
-		for _, listed := range slices.Sorted(maps.Keys(pending.Known)) {
-			digests := slices.Clone(pending.Known[listed])
-			slices.Sort(digests)
-			canonical.Known[listed] = digests
+		for listedPath, digests := range pending.Known {
+			sortedDigests := slices.Clone(digests)
+			slices.Sort(sortedDigests)
+			canonical.Known[listedPath] = sortedDigests
 		}
 	}
 	if len(pending.TemporaryFiles) > 0 {
