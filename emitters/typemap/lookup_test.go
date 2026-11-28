@@ -126,6 +126,9 @@ func lookupCases() []lookupCase {
 	uuidHexOnly := func(*testing.T) typemap.Table {
 		return typemap.Table{Primitives: map[ir.PrimitiveKind]map[string]typemap.Row{ir.PrimitiveUUID: {"hex": {Type: "H"}}}}
 	}
+	undeclaredKindRow := func(*testing.T) typemap.Table {
+		return typemap.Table{Primitives: map[ir.PrimitiveKind]map[string]typemap.Row{"int65": {"": {Type: "I"}}}}
+	}
 	empty := func(*testing.T) typemap.Table { return typemap.Table{} }
 	return []lookupCase{
 		{"1 a keyed row", fullTable, ir.PrimitiveBytes, encoding("base64url", ir.PrimitiveString), "bytes/base64url", exact, true},
@@ -154,6 +157,7 @@ func lookupCases() []lookupCase {
 		{"17 a keyed row alone", uuidHexOnly, ir.PrimitiveUUID, encoding("hex", ""), "H", exact, true},
 		{"18 an undeclared kind", fullTable, "int65", typemap.Encoding{}, "", none, false},
 		{"18 an undeclared wire type", fullTable, ir.PrimitiveUUID, encoding("x", "int65"), "", none, false},
+		{"18 an undeclared kind the table holds a row for", undeclaredKindRow, "int65", typemap.Encoding{}, "I", exact, true},
 		{"19 keys compare exactly, as text", fullTable, ir.PrimitiveBytes, encoding("Base64URL", ir.PrimitiveString), "default string", travelsAs, true},
 		{"19 keys compare exactly", fullTable, ir.PrimitiveBytes, encoding("Base64URL", ""), "default string", travelsAs, true},
 		{"20 a slash in an encoding name", fullTable, ir.PrimitiveString, encoding("A.B.C.D/N", ""), "string/A.B.C.D/N", exact, true},
