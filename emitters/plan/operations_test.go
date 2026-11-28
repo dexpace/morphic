@@ -276,7 +276,8 @@ type effectsCase struct {
 // bindingCases returns operations bound every way ProtocolEffects reads: each
 // HTTP method kind, one in the wrong case and one the registry does not list,
 // each GraphQL kind, each binding defining nothing, no binding, and bindings
-// together, with the effects each takes under the policy.
+// together, two HTTP ones in either order, with the effects each takes under
+// the policy.
 func bindingCases() []effectsCase {
 	both, idempotent := plan.Effects{Safe: true, Idempotent: true}, plan.Effects{Idempotent: true}
 	graphQL := func(kind string) func(*ir.Operation) {
@@ -303,6 +304,7 @@ func bindingCases() []effectsCase {
 		{"operation/otp", func(o *ir.Operation) { o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
 		{"operation/unbound", nil, plan.Effects{}},
 		{"operation/get-and-put", over("GET", "PUT"), idempotent},
+		{"operation/put-and-get", over("PUT", "GET"), idempotent},
 		{"operation/get-and-rpc", func(o *ir.Operation) { over("GET")(o); rpc(o) }, plan.Effects{}},
 		{"operation/get-and-message", func(o *ir.Operation) { over("GET")(o); o.Bindings.Message = &ir.MessageBinding{} }, plan.Effects{}},
 		{"operation/get-and-otp", func(o *ir.Operation) { over("GET")(o); o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
