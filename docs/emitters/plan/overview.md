@@ -12,7 +12,7 @@ one encoding.
 ```go
 package plan
 
-func Build(doc *ir.Document, facts *irfacts.DocumentFacts, pp Policy) (*Plan, []ir.Diagnostic)
+func Build(doc *ir.Document, facts *irfacts.DocumentFacts, policy Policy) (*Plan, []ir.Diagnostic)
 
 type Plan struct {
     Ops       map[ir.OperationID]OpPlan // one entry per operation
