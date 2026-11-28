@@ -229,8 +229,9 @@ func discriminated(id ir.TypeID, key string) *ir.Model {
 
 // TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf holds a subtype below
 // several discriminated bases: its DiscriminatorValue routes from the base
-// whose Mapping keys it to the subtype, by that entry, and otherwise from the
-// nearest, level by level, Base before Implements, and from no other
+// whose Mapping keys it to the subtype, by that entry, and otherwise, a
+// union's Mapping keying it too, from the nearest, level by level, Base
+// before Implements, and from no other
 // (docs/emitters/plan/types.md#a-discriminators-routes). want holds each
 // holder's Mapping.
 func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
@@ -271,6 +272,11 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 		}, map[ir.TypeID]map[string][]ir.TypeID{
 			"type/pet": petRoutes(map[string][]ir.TypeID{"pup": {"type/puppy"}}), "type/dog": nil,
 		}},
+		{"a union's Mapping keying the subtype's value", func() *ir.Document {
+			union := &ir.Union{ID: "type/union", WireTagged: true, Variants: variantsOf("type/cat"),
+				Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"cat": "type/cat"}}}
+			return irtest.DocOf(discriminated("type/pet", "petType"), subtypeModel("type/cat", "cat", "type/pet"), union)
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/pet": {"cat": {"type/cat"}}}},
 		{"two bases one hop up, the Base sorting after the other", func() *ir.Document {
 			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
 				subtypeModel("type/leaf", "Leaf", "type/b", "type/a"))
