@@ -872,7 +872,8 @@ SDK built on it is something a caller asks for with `none`, never a default.
    format-version-normalization seam.
 3. **First emitters** — Go, Kotlin/JVM and Kotlin Multiplatform end-to-end from one plan; proves the
    plan/refine/emit boundary, the plan's neutrality across three targets, and that the IR retains
-   everything a refiner needs ([the milestone plan](./emitters/milestones.md)).
+   everything a refiner needs ([the milestone plan](./emitters/milestones.md)). A TypeScript target
+   is built beside them on [a track of its own](./emitters/milestones.md#the-typescript-track).
 4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.

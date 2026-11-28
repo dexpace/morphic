@@ -187,8 +187,9 @@ type Check struct {
   build.
 
 The findings here and below are the engine's, reported under the target's namespace since the
-output and the manifest are the target's. The check lands with the first targets (M3a), since from
-then a golden either builds or fails the gate ([milestones](milestones.md)).
+output and the manifest are the target's. The check lands with the first golden, at M3a or on the
+TypeScript track, since from then a golden either builds or fails the gate
+([milestones](milestones.md)).
 
 ## The manifest says what the output holds
 

@@ -74,3 +74,21 @@ What holds the line beyond review: `emitters/plan` imports only `ir`, `ir/irfact
 naming data, a runtime policy or a target ([package layout](../packages.md)); the plan is
 golden-tested once, with no target in the loop; and a plan field's doc comment names what it derives
 and which artifacts expose it, which a reviewer checks against the third test.
+
+## One target reading the plan
+
+The first test asks what every target wants, and a target may read the plan before the others are
+built, as TypeScript does on [its track](../milestones.md#the-typescript-track). Its code then
+answers the test for one target, and the others' answers are on paper. So while one target reads
+the plan:
+
+- **A field enters the plan with every target's answer.** The change that adds a field, or changes
+  what one holds, answers the first test for each target under `targets/`, built or not. Where a
+  target reads the field, its documents say what for, and where its documents would want another
+  value, the field has failed the test, as that target's code would have shown.
+- **A field only the built target can use has failed the test**, as it would at M3a
+  ([milestones](../milestones.md)). It is that target's refine decision, in its own packages, until
+  a second target's documents name a use for it and the three tests hold.
+
+No test holds either: a review does, until a second target reads the field in code, from where the
+targets hold each other as M3a's three do.

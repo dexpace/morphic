@@ -142,7 +142,7 @@ and [IR design](docs/ir/README.md) give the reasoning.
 |---|---|---|
 | 1 | IR package + OpenAPI 3.x compiler, `validate` pass, golden corpus, JSON round-trip | **Implemented** |
 | 2 | Swagger 2.0 lift into the OpenAPI compiler (format-version-normalization seam) | Planned |
-| 3 | First emitters: Go, Kotlin/JVM and Kotlin Multiplatform end to end from one plan (plan / refine / emit boundary) | Planned |
+| 3 | First emitters: Go, Kotlin/JVM and Kotlin Multiplatform end to end from one plan (plan / refine / emit boundary), with a TypeScript target on a track of its own | Planned |
 | 4 | Second family compiler (TypeSpec or Smithy), proving the spec-agnostic claim | Planned |
 | 5 | Event-shaped compiler (AsyncAPI), then GraphQL, Protobuf, Erlang/OTP | Planned |
 
