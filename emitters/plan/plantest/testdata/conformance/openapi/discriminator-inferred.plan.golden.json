@@ -129,6 +129,24 @@
       ]
     },
     "type/openapi/components/schemas/Calculation": {
+      "discrim": {
+        "mapping": {
+          "COUNT": [
+            "type/anonymous/components/schemas/Calculation/oneOf/0"
+          ],
+          "count": [
+            "type/anonymous/components/schemas/Calculation/oneOf/0"
+          ],
+          "max": [
+            "type/anonymous/components/schemas/Calculation/oneOf/1"
+          ],
+          "min": [
+            "type/anonymous/components/schemas/Calculation/oneOf/1"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "operator"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/Circle": {
@@ -144,6 +162,18 @@
       "union": "one_of"
     },
     "type/openapi/components/schemas/Format": {
+      "discrim": {
+        "mapping": {
+          "json": [
+            "type/openapi/components/schemas/JsonFormat"
+          ],
+          "text": [
+            "type/openapi/components/schemas/TextFormat"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "type"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/JsonFormat": {
@@ -155,15 +185,46 @@
       ]
     },
     "type/openapi/components/schemas/Named": {
+      "discrim": {
+        "mapping": {
+          "json": [
+            "type/openapi/components/schemas/json"
+          ],
+          "text": [
+            "type/openapi/components/schemas/text"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "type"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/Operation": {
+      "discrim": {
+        "mapping": {
+          "completed": [
+            "type/anonymous/components/schemas/Operation/oneOf/1"
+          ],
+          "pending": [
+            "type/anonymous/components/schemas/Operation/oneOf/0"
+          ],
+          "running": [
+            "type/anonymous/components/schemas/Operation/oneOf/0"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "status"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/Optional": {
       "union": "one_of"
     },
     "type/openapi/components/schemas/Overlapping": {
+      "discrim": {
+        "locator": "property_name",
+        "wireKey": "operator"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/Polygon": {
@@ -178,6 +239,18 @@
       ]
     },
     "type/openapi/components/schemas/Shape": {
+      "discrim": {
+        "mapping": {
+          "circle": [
+            "type/openapi/components/schemas/Circle"
+          ],
+          "square": [
+            "type/openapi/components/schemas/Square"
+          ]
+        },
+        "locator": "property",
+        "wireKey": "kind"
+      },
       "flattened": [
         "property/openapi/components/schemas/Shape/properties/kind"
       ],
@@ -197,6 +270,18 @@
       ]
     },
     "type/openapi/components/schemas/Styled": {
+      "discrim": {
+        "mapping": {
+          "json": [
+            "type/composed/components/schemas/Styled/oneOf/0"
+          ],
+          "text": [
+            "type/composed/components/schemas/Styled/oneOf/1"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "type"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/TextFormat": {
@@ -208,6 +293,18 @@
       ]
     },
     "type/openapi/components/schemas/Untagged": {
+      "discrim": {
+        "mapping": {
+          "json": [
+            "type/openapi/components/schemas/JsonFormat"
+          ],
+          "text": [
+            "type/openapi/components/schemas/TextFormat"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "type"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/json": {
@@ -231,6 +328,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

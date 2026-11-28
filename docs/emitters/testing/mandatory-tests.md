@@ -205,11 +205,13 @@ throughout these documents.
 22. **T-22 · Unknown variants** — on each wire shape and on a polymorphic base, a value no variant
     recognizes decodes to the fallback on an open union and re-encodes as the same JSON value, its
     members in order and each number's text intact; `Default` takes it first; a closed union refuses
-    it with a coded error, and a known tag over a body that does not match is an error on both;
-    turning `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared
-    answer, once the IR has one, wins; a closed union only requests carry is `Open` as one a
-    response carries is, and a union, a polymorphic base and a narrowing model the IR marks
-    `InputOnly` each stay closed ([plan policy](../plan/policy.md), [unions](../refine/unions.md)).
+    it with a coded error, and a known tag over a body that does not match is an error on both; a
+    tag two subtypes carry, as `Kitten` composing a `Cat` that pins it, decodes as the one
+    recognition finds among them, and a value neither admits is a coded decode error; turning
+    `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared answer, once
+    the IR has one, wins; a closed union only requests carry is `Open` as one a response carries is,
+    and a union, a polymorphic base and a narrowing model the IR marks `InputOnly` each stay closed
+    ([plan policy](../plan/policy.md), [unions](../refine/unions.md)).
 23. **T-23 · Errors** — a fixture whose failures have as bodies one model across several statuses, a
     model with a member named `error`, a union, a list and a primitive, beside a case with no body,
     a `4XX` range and a `default` beside a success, generates no error type and code that compiles
@@ -1158,31 +1160,34 @@ throughout these documents.
     ([Kotlin](../targets/kotlin/naming.md#imports), [Go](../targets/go/naming.md#imports)).
 56. **T-56 · The tag a variant's value carries** — on every target, a discriminated union whose
     variants leave the tag a plain string encodes a variant built with that member unset, or set to
-    another variant's tag, with the one tag routing to it, and decodes the result as that variant; a
-    variant two tags route to writes the one its value holds and refuses, with a coded error, a
-    value holding neither; a variant pinning its tag as a number is routed by that number's value, a
-    payload spelling it `10016.0` or `1.0016e4` decoding at a closed union as `10016` does and one
-    carrying it as the string `"10016"` failing in that variant; of two routes spelling one number,
-    `1` and `1.0`, a payload's `1.0` takes the second and its `1e0` the first, of `1.00` and `1e0` a
+    another variant's tag, with the one tag routing to it, and decodes the result as that variant
+    unless a variant that tag also routes to admits it first in recognition order; a variant two
+    tags route to writes the one its value holds and refuses, with a coded error, a value holding
+    neither; a variant pinning its tag as a number is routed by that number's value, a payload
+    spelling it `10016.0` or `1.0016e4` decoding at a closed union as `10016` does and one carrying
+    it as the string `"10016"` failing in that variant; of two routes spelling one number, `1` and
+    `1.0`, a payload's `1.0` takes the second and its `1e0` the first, of `1.00` and `1e0` a
     payload's `10e-1` takes `1.00`, and of `-0` and `0` its `0.0` takes `-0`; a variant that is a
     union carries the outer union's tag in the object its value is, added where that object has no
     such member; and a variant no tag routes to decodes by recognition, before `Default`, in a union
     declaring a `Default` too, where a value no such variant admits decodes as `Default`, and
     refuses to encode a value carrying another variant's tag, as `Default`'s variant refuses one
-    such a variant admits. Every example the plan synthesizes for a variant, and every member
-    `plan.Shown` fills, carries one of that variant's own tags and decodes as the variant it was
-    made from, one whose member's set lists another variant's tag first among them, and a declared
-    example that the variant its tag routes to does not admit is `emitters/plan/example-refused`
-    ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
+    that another variant no tag routes to admits. Every example the plan synthesizes for a variant,
+    and every member `plan.Shown` fills, one whose member's set lists another variant's tag first
+    among them included, carries one of that variant's own tags and decodes as the variant it was
+    made from unless a variant that tag also routes to admits it first in recognition order, and a
+    declared example whose tag routes to variants none of which admits it is
+    `emitters/plan/example-refused` ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
 57. **T-57 · What a mock accepts** — the mock accepts every example the plan holds for a request,
     shown in the shape its operation sends, and refuses a body narrowing a discriminated union that
-    lacks a member the entry its tag routes to requires, breaks a constraint of a declaration that
-    entry takes or of one it overrides, a member redeclared with no bound over a declaration
-    bounding its length refusing a value past the bound in a model narrowing no union too, or
-    carries a tag routing to no entry, the model's own members admitting all of them. It refuses, in
-    a request, an enum value and a variant the document does not list whatever `TypePlan.Open` says,
-    and accepts one where the IR declares the type open; and it tries each entry of a body narrowing
-    an untagged union at most once ([what a mock accepts](../docs-and-mock.md#what-a-mock-accepts)).
+    every entry its tag routes to refuses, lacking a member the entry requires or breaking a
+    constraint of a declaration the entry takes or of one it overrides, a member redeclared with no
+    bound over a declaration bounding its length refusing a value past the bound in a model
+    narrowing no union too, or that carries a tag routing to no entry, the model's own members
+    admitting all of them. It refuses, in a request, an enum value and a variant the document does
+    not list whatever `TypePlan.Open` says, and accepts one where the IR declares the type open; and
+    it tries each entry of a body narrowing an untagged union at most once ([what a mock
+    accepts](../docs-and-mock.md#what-a-mock-accepts)).
 58. **T-58 · A declaration no operation moves** — adding to a fixture an operation that returns an
     enum, a union, a polymorphic base and a model narrowing a union until then only sent, and
     removing the one operation returning others, changes no declaration on any target: each is

@@ -5,16 +5,17 @@
     "type/anonymous/components/schemas/MixedFixed/enum/0": {},
     "type/anonymous/components/schemas/MixedFixed/enum/1": {},
     "type/openapi/components/schemas/ByKey": {
-      "flattened": [
-        "property/openapi/components/schemas/ByKey/properties/p"
-      ],
       "deprecated": {
         "property/openapi/components/schemas/ByKey/properties/p": {}
-      }
+      },
+      "flattened": [
+        "property/openapi/components/schemas/ByKey/properties/p"
+      ]
     },
     "type/openapi/components/schemas/Fixed": {},
     "type/openapi/components/schemas/Mixed": {
-      "union": "one_of"
+      "union": "one_of",
+      "open": true
     },
     "type/openapi/components/schemas/MixedFixed": {
       "union": "one_of"
@@ -23,24 +24,30 @@
       "union": "one_of"
     },
     "type/openapi/components/schemas/Old": {
-      "flattened": [
-        "property/openapi/components/schemas/Old/properties/p",
-        "property/openapi/components/schemas/Old/properties/n"
-      ],
       "deprecated": {
         "property/openapi/components/schemas/Old/properties/n": {},
         "property/openapi/components/schemas/Old/properties/p": {
           "message": "field goes away"
         }
-      }
+      },
+      "flattened": [
+        "property/openapi/components/schemas/Old/properties/p",
+        "property/openapi/components/schemas/Old/properties/n"
+      ]
     },
     "type/openapi/components/schemas/Shade": {},
-    "type/openapi/components/schemas/Size": {},
-    "type/openapi/components/schemas/Tier": {},
+    "type/openapi/components/schemas/Size": {
+      "open": true
+    },
+    "type/openapi/components/schemas/Tier": {
+      "open": true
+    },
     "type/primitive/integer": {},
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

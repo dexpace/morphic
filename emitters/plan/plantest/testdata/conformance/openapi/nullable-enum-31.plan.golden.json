@@ -14,6 +14,8 @@
     "type/openapi/components/schemas/NarrowedColor": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

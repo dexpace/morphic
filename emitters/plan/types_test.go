@@ -95,35 +95,42 @@ func TestBuild_FlattensAModelAcrossItsComposition(t *testing.T) {
 func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 	t.Parallel()
 	discriminator := &ir.Discriminator{PropertyName: "kind"}
+	// routed is what the plan reads off discriminator over no variant.
+	routed := &plan.DiscrimFacts{Locator: plan.DiscrimPropertyName, WireKey: "kind"}
 	tests := []struct {
-		name       string
-		union      ir.Union
-		want       plan.UnionShape
-		wantStrict bool
+		name        string
+		union       ir.Union
+		want        plan.UnionShape
+		wantDiscrim *plan.DiscrimFacts
+		wantStrict  bool
 	}{
-		{"exactly one variant holds a value", ir.Union{Exclusive: true}, plan.UnionOneOf, true},
-		{"one or more variants hold a value", ir.Union{}, plan.UnionAnyOf, false},
+		{"exactly one variant holds a value", ir.Union{Exclusive: true}, plan.UnionOneOf, nil, true},
+		{"one or more variants hold a value", ir.Union{}, plan.UnionAnyOf, nil, false},
 		{"a tag the discriminator locates", ir.Union{WireTagged: true, Discriminator: discriminator},
-			plan.UnionDiscriminated, false},
+			plan.UnionDiscriminated, routed, false},
 		{"a tag on an exclusive union", ir.Union{WireTagged: true, Exclusive: true, Discriminator: discriminator},
-			plan.UnionDiscriminated, false},
-		{"the one key of an object", ir.Union{WireTagged: true}, plan.UnionKeyTagged, false},
-		{"an exclusive union tagged by its key", ir.Union{WireTagged: true, Exclusive: true}, plan.UnionKeyTagged, false},
-		{"a discriminator on a payload naming no variant", ir.Union{Discriminator: discriminator}, plan.UnionAnyOf, false},
+			plan.UnionDiscriminated, routed, false},
+		{"the one key of an object", ir.Union{WireTagged: true}, plan.UnionKeyTagged, nil, false},
+		{"an exclusive union tagged by its key", ir.Union{WireTagged: true, Exclusive: true},
+			plan.UnionKeyTagged, nil, false},
+		{"a discriminator on a payload naming no variant", ir.Union{Discriminator: discriminator},
+			plan.UnionAnyOf, nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			union := tt.union
 			union.ID = "type/union"
+			union.Closed = true
 			doc := irtest.DocOf(&union)
 
 			lenient := build(t, doc, plan.Policy{}).Types[union.ID]
-			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want}, lenient),
+			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Discrim: tt.wantDiscrim}, lenient),
 				"with StrictExclusive off no union is strict (-want +got)")
 
 			strict := build(t, doc, plan.Policy{StrictExclusive: true}).Types[union.ID]
-			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Strict: tt.wantStrict}, strict), "(-want +got)")
+			assert.Empty(t, cmp.Diff(plan.TypePlan{Union: tt.want, Discrim: tt.wantDiscrim, Strict: tt.wantStrict},
+				strict), "(-want +got)")
 		})
 	}
 }
@@ -131,15 +138,16 @@ func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 // TestBuild_EveryKindHasAPlan is the dispatch's switch-completeness test
 // (T-1): derives says what Build reads off each kind, and a kind ir declares
 // that it does not list fails here until the dispatch and this table say what
-// the plan derives of it.
+// the plan derives of it. The zero union and enum are open, Closed being
+// false.
 func TestBuild_EveryKindHasAPlan(t *testing.T) {
 	t.Parallel()
 	derives := map[ir.TypeKind]plan.TypePlan{
 		ir.KindPrimitive: {},
 		ir.KindScalar:    {},
 		ir.KindModel:     {Flattened: []ir.PropertyID{"type/model/id"}},
-		ir.KindUnion:     {Union: plan.UnionAnyOf},
-		ir.KindEnum:      {},
+		ir.KindUnion:     {Union: plan.UnionAnyOf, Open: true},
+		ir.KindEnum:      {Open: true},
 		ir.KindList:      {},
 		ir.KindMap:       {},
 		ir.KindTuple:     {},
@@ -175,18 +183,77 @@ func TestBuild_EveryKindHasAPlan(t *testing.T) {
 	}
 }
 
+// TestBuild_OpensWhatThePolicyOpens holds Open on every kind it reads, under
+// each pair of OpenUnions and OpenEnums (T-22, T-36): what the IR declares
+// open is open under any policy, each switch opens only its own kinds, and
+// neither opens what a request alone carries, an enum declaring a fallback or
+// one with no member.
+func TestBuild_OpensWhatThePolicyOpens(t *testing.T) {
+	t.Parallel()
+	policies := [...]plan.Policy{{}, {OpenUnions: true}, {OpenEnums: true}, {OpenUnions: true, OpenEnums: true}}
+	member := []ir.EnumMember{{ID: "enum-member/subject/small", Name: ir.NamingFor("small")}}
+	tests := []struct {
+		name string
+		td   ir.TypeDef
+		// want is Open under each of policies, in order.
+		want [len(policies)]bool
+	}{
+		{"a closed union", &ir.Union{Closed: true}, [...]bool{false, true, false, true}},
+		{"an open union", &ir.Union{}, [...]bool{true, true, true, true}},
+		{"a closed union only a request carries", &ir.Union{Closed: true, InputOnly: true},
+			[...]bool{false, false, false, false}},
+		{"an open union only a request carries", &ir.Union{InputOnly: true}, [...]bool{true, true, true, true}},
+		{"a model holding a discriminator", irtest.ModelOf("", func(m *ir.Model) {
+			m.Discriminator = &ir.Discriminator{PropertyName: "kind"}
+		}), [...]bool{false, true, false, true}},
+		{"an abstract model", irtest.ModelOf("", func(m *ir.Model) { m.Abstract = true }),
+			[...]bool{false, true, false, true}},
+		{"a base only a request carries", irtest.ModelOf("", func(m *ir.Model) {
+			m.Abstract, m.InputOnly = true, true
+			m.Discriminator = &ir.Discriminator{PropertyName: "kind"}
+		}), [...]bool{false, false, false, false}},
+		{"a model that is no base", irtest.ModelOf("", nil), [...]bool{false, false, false, false}},
+		{"a closed enum", &ir.Enum{Closed: true, Members: member}, [...]bool{false, false, true, true}},
+		{"an open enum", &ir.Enum{Members: member}, [...]bool{true, true, true, true}},
+		{"a closed enum declaring a fallback", &ir.Enum{Closed: true, Members: member, FallbackMember: "small"},
+			[...]bool{false, false, false, false}},
+		{"a closed enum with no member", &ir.Enum{Closed: true}, [...]bool{false, false, false, false}},
+		{"a closed flags enum with no member", &ir.Enum{Closed: true, Flags: true},
+			[...]bool{false, false, false, false}},
+		{"an open enum with no member", &ir.Enum{}, [...]bool{true, true, true, true}},
+		{"a scalar", irtest.ScalarOf("", "type/string"), [...]bool{false, false, false, false}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.td.Common().ID = "type/subject"
+			doc := irtest.DocOf(tt.td, &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString})
+
+			var got [len(policies)]bool
+			for i, policy := range policies {
+				got[i] = build(t, doc, policy).Types["type/subject"].Open
+			}
+
+			assert.Equal(t, tt.want, got, "Open under %+v", policies)
+		})
+	}
+}
+
 func TestBuild_ANilEntryPlansAsTheZeroTypePlan(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"type/untyped": nil,
 		"type/model":   (*ir.Model)(nil),
 		"type/union":   (*ir.Union)(nil),
+		"type/enum":    (*ir.Enum)(nil),
 		"type/scalar":  (*ir.Scalar)(nil),
 	}}
 
-	built := build(t, doc, plan.Policy{StrictExclusive: true})
+	built := build(t, doc, plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true})
 
-	want := map[ir.TypeID]plan.TypePlan{"type/untyped": {}, "type/model": {}, "type/union": {}, "type/scalar": {}}
+	want := map[ir.TypeID]plan.TypePlan{
+		"type/untyped": {}, "type/model": {}, "type/union": {}, "type/enum": {}, "type/scalar": {},
+	}
 	assert.Empty(t, cmp.Diff(want, built.Types), "(-want +got)")
 }
 

@@ -1,2 +1,4 @@
-7325ad02e51dd12ee752dea644cc06f0559eea69c8d25f7ed40eacb8a5d08c41 {"strictExclusive":false}
-b23746b97f83f8a84808d83c2cfd01d2b65ec66d9268bfbc460f8de04668226f {"strictExclusive":true}
+0ecdb04543f217676f9d94a4fca743c6b57abcd15c8ea3c0ec6c7948567e992b {"openUnions":false,"openEnums":false,"strictExclusive":false}
+e47f7c996d13026319a4a851f11e43dba2019837c19b1369bda541b4c60978d2 {"openUnions":true,"openEnums":false,"strictExclusive":false}
+e05e81057c8c477dabdfd6e9efe2bfcf3c87c76c71d645a935ba0caa489a84fe {"openUnions":false,"openEnums":true,"strictExclusive":false}
+e3d89e2361874754f98d27b65920317438efe1a3f32721e74776627263dd7ab2 {"openUnions":false,"openEnums":false,"strictExclusive":true}

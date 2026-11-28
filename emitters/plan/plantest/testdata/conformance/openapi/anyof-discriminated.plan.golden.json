@@ -22,11 +22,25 @@
       ]
     },
     "type/openapi/components/schemas/Resource": {
+      "discrim": {
+        "mapping": {
+          "labelled": [
+            "type/openapi/components/schemas/Labelled"
+          ],
+          "named": [
+            "type/openapi/components/schemas/Named"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "kind"
+      },
       "union": "discriminated"
     },
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

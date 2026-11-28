@@ -38,6 +38,10 @@
     "type/openapi/components/schemas/RefConst": {},
     "type/openapi/components/schemas/RefConstrained": {},
     "type/openapi/components/schemas/RefDiscriminator": {
+      "discrim": {
+        "locator": "property_name",
+        "wireKey": "a"
+      },
       "flattened": [
         "property/openapi/components/schemas/RefTargetObj/properties/a"
       ]
@@ -69,6 +73,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

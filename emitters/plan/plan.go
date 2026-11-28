@@ -58,14 +58,15 @@ func Build(doc *ir.Document, _ *irfacts.DocumentFacts, policy Policy) (*Plan, []
 	if doc == nil {
 		doc = &ir.Document{}
 	}
-	built := &Plan{Types: typePlans(doc.Types, policy), Policy: policy}
+	types, diags := typePlans(doc, policy)
+	built := &Plan{Types: types, Policy: policy}
 
 	version, err := versionOf(doc, policy)
 	if err != nil {
-		return built, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, codeUnencodable,
+		return built, append(diags, ir.NewDiagnostic(ir.SeverityError, codeUnencodable,
 			fmt.Sprintf("the document has no canonical JSON, so its plan has no version: %v", err),
-			ir.Provenance{Source: ir.NoSource})}
+			ir.Provenance{Source: ir.NoSource}))
 	}
 	built.Version = version
-	return built, nil
+	return built, diags
 }

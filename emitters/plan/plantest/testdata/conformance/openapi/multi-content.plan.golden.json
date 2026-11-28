@@ -4,6 +4,8 @@
     "type/anonymous/paths/~1data/get/responses/200/content/application~1xml/schema": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

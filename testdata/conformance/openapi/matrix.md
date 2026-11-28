@@ -20,14 +20,15 @@ witnessing it.
 
 - Witnesses: `allof-inheritance`, `discriminator-inheritance`, `discriminator-inline-subtype`,
   `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`,
-  `type-array-discriminator`
+  `type-array-discriminator`, `discriminator-shared-tag`
 
 ### `tagged-unions`
 
 - Witnesses: `oneof-discriminated`, `anyof-discriminated`, `discriminator-inheritance`,
   `discriminator-inline-subtype`, `discriminator-default-mapping`, `discriminator-transitive`,
   `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`,
-  `discriminator-aliased-branch`, `discriminated-union-distributed`, `discriminator-inferred`
+  `discriminator-aliased-branch`, `discriminated-union-distributed`, `discriminator-inferred`,
+  `discriminator-shared-tag`
 
 ### `untagged-unions`
 

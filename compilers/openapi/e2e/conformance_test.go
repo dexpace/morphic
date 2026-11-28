@@ -208,6 +208,7 @@ func conformanceCases() []conformanceCase {
 		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel},
 		{"discriminated-union-distributed", assertDiscriminatedUnionDistributed},
 		{"discriminator-inferred", assertDiscriminatorInferred},
+		{"discriminator-shared-tag", assertDiscriminatorSharedTag},
 		{"nullable-union-discriminator", assertNullableUnionDiscriminator},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"union-beside-ref", assertUnionBesideRef},

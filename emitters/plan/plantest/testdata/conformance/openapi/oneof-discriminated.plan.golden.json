@@ -11,6 +11,18 @@
       ]
     },
     "type/openapi/components/schemas/Pet": {
+      "discrim": {
+        "mapping": {
+          "cat": [
+            "type/openapi/components/schemas/Cat"
+          ],
+          "dog": [
+            "type/openapi/components/schemas/Dog"
+          ]
+        },
+        "locator": "property_name",
+        "wireKey": "petType"
+      },
       "union": "discriminated"
     },
     "type/openapi/components/schemas/StoredPet": {
@@ -25,6 +37,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

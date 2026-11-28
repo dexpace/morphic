@@ -27,6 +27,8 @@
     "type/primitive/url": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

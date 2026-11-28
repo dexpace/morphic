@@ -11,6 +11,8 @@
     "type/primitive/date": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

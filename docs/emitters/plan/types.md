@@ -23,7 +23,7 @@ type TypePlan struct {
                                     // for one adding nothing to its union, and where no
                                     // distribution serves (below)
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
-    Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
+    Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as type IDs
     Open       bool                 // a union, polymorphic base, model narrowing a union or enum
                                     // keeps a value no variant or member recognizes rather than
                                     // refusing it (policy.md, ../refine/unions.md,
@@ -72,9 +72,10 @@ type DiscrimFacts struct {                 // Mapping/Default resolved to TypeID
     Locator           DiscrimLocator       // property | property_name | index
     WireKey           string               // wire name of the tag property ("" when Locator == index)
     TupleElementIndex *int                 // positional tag element (Erlang tagged tuples); nil otherwise
-    Mapping           map[string]ir.TypeID // wire tag value → variant ID: every route, those a union's nil
-                                           // Mapping leaves to its variants' type names written out
-                                           // (../refine/unions.md#the-tag-a-variants-value-carries)
+    Mapping           map[string][]ir.TypeID // wire tag value → every type it routes to, in ID
+                                             // order, none twice: every route the IR gives, those a
+                                             // union's nil Mapping leaves to its variants' type names
+                                             // written out (../refine/unions.md#the-tag-a-variants-value-carries)
     Default           ir.TypeID            // variant for absent/unrecognized tag; "" = none
     Envelope          string               // "" = inline tag | "object" = {kind,value} wrapper
     EnvelopeValueName string               // wire name of the envelope value property (Envelope=="object")
@@ -103,6 +104,50 @@ to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref:
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
 not hold what it admits, so each refiner lowers it or degrades with a code of its own; the three
 targets lower a union there as [inheritance](../refine/models.md#inheritance) says.
+
+## A discriminator's routes
+
+`Discrim` is set on a discriminated union and on the model holding a discriminator, a polymorphic
+base, and on no other type: a subtype carries its tag in `DiscriminatorValue`, which the plan of the
+base whose discriminator it is a tag of routes. A union's routes are the entries of its `Mapping`,
+or, where that holds none, each variant under the source name of its type ([the tag a variant's
+value carries](../refine/unions.md#the-tag-a-variants-value-carries)). A base's are the entries of
+its `Mapping` and the `DiscriminatorValue` of each subtype whose value is its tag
+([discriminator](../../ir/models.md#discriminator)). A value a hierarchy's `Mapping` keys to the
+subtype carrying it is that discriminator's tag, which the entry routes. Any other, a name the
+source routes the subtype by or a tag a heuristic read off it, is taken as the tag of the subtype's
+nearest ancestor holding a discriminator, never the subtype itself: read level by level up `Base`
+and `Implements`, never `Mixins`, the one fewest hops away and, of those as near, the one reached
+through the earlier supertype, `Base` before `Implements`. So `Pet`, tagging `petType`, routes no
+`Labrador` that `Dog` composing `Pet` tags by `breed`, `lab: Labrador`, nor one `Dog` tags at
+`petType` itself: `lab` is `Dog`'s tag, not `Pet`'s. `WireKey` is `PropertyName`, or the wire name
+of the flattened member one of whose declarations is `Property`.
+
+The IR does not state which discriminator a value no `Mapping` keys is a tag of, and holds one value
+for each subtype, so the nearest is the plan's reading. The OpenAPI compiler reads such a tag
+against the nearest ancestor too, but through every `$ref` entry of an `allOf`, those it lowers as
+`Mixins` among them ([`discriminator-value`](../../compilers/openapi.md#discriminator-value)), so
+where a mixin edge reaches a discriminator the value may be that one's tag: `Seal` composing
+`Mammal`, itself composing an `Animal` that tags `kind`, and a `Tagged` that tags `type`, which
+`Seal` pins to `seal`, carries `seal`, and the plan routes it from `Animal` at `kind`, a route the
+source does not state (GitHub #2313). Where a second discriminator above the subtype routes it too,
+the plan gives that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
+every schema building on a parent, or a nearer one where a farther `Mapping` keys the value
+(GitHub #2313). Routing the value from every base above it, the design this replaces, gave `Pet` the
+route `petType: lab` that neither the document nor the IR states, which an encoder writing a
+`Labrador` through `Pet` would have sent.
+
+The IR may route one tag to several types, as two subtypes carrying one value do
+([discriminator](../../ir/models.md#discriminator)): `Kitten` composing `Cat`, which pins `petType`
+to `cat`, carries `cat` too. `Mapping` names each of them under the tag, and a decoder finds the one
+a value is among them by recognition ([a value no variant
+recognizes](../refine/unions.md#a-value-no-variant-recognizes)). A `Mapping` keying one type per
+tag, leaving a tag several carry out with a warning, was the design this replaces: it dropped the
+route the document declares, `cat: Cat`, and left `Cat` and `Kitten` each a tag nothing routes,
+which an encoder then writes. A discriminator that does not set exactly one locator, or a union's
+set only by `Property`, routes nothing: `Discrim` is nil, and the plan reports an error
+`emitters/plan/discriminator-unlocated`. `EnvelopeValueName` is `"value"` where an `object` envelope
+names no value property, as the IR's default is.
 
 ## A model narrowing a union
 

@@ -65,7 +65,7 @@ func TestBuild_LeavesTheDocumentAsItFoundIt(t *testing.T) {
 
 func TestBuild_RecordsThePolicyItRanUnder(t *testing.T) {
 	t.Parallel()
-	policy := plan.Policy{StrictExclusive: true}
+	policy := plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true}
 
 	built := build(t, widgetDoc(), policy)
 
@@ -101,7 +101,9 @@ func TestBuild_VersionNamesTheDocumentAndThePolicy(t *testing.T) {
 	assert.Equal(t, reference, version(func(doc *ir.Document) { doc.Diagnostics = nil }, plan.Policy{}))
 
 	moved := map[string]string{
-		"a policy field": version(nil, plan.Policy{StrictExclusive: true}),
+		"OpenUnions":      version(nil, plan.Policy{OpenUnions: true}),
+		"OpenEnums":       version(nil, plan.Policy{OpenEnums: true}),
+		"StrictExclusive": version(nil, plan.Policy{StrictExclusive: true}),
 		"the document's name": version(func(doc *ir.Document) {
 			doc.Name = "gadgets"
 		}, plan.Policy{}),
@@ -128,7 +130,7 @@ func TestBuild_VersionNamesTheDocumentAndThePolicy(t *testing.T) {
 // diagnostics left out, then the policy's canonical JSON.
 func TestBuild_VersionHashesTheDigestThenThePolicy(t *testing.T) {
 	t.Parallel()
-	policy := plan.Policy{StrictExclusive: true}
+	policy := plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true}
 	doc := widgetDoc()
 
 	stripped := widgetDoc()
@@ -143,6 +145,12 @@ func TestBuild_VersionHashesTheDigestThenThePolicy(t *testing.T) {
 	want := sha256.Sum256(append(digest[:], policyJSON...))
 
 	assert.Equal(t, hex.EncodeToString(want[:]), build(t, doc, policy).Version)
+}
+
+// singleSwitchPolicies returns the zero policy and one turning on each switch
+// alone.
+func singleSwitchPolicies() []plan.Policy {
+	return []plan.Policy{{}, {OpenUnions: true}, {OpenEnums: true}, {StrictExclusive: true}}
 }
 
 // versionGolden holds the version of one document under each policy.
@@ -161,7 +169,7 @@ func TestBuild_VersionIsPinned(t *testing.T) {
 	doc := widgetDoc()
 	doc.IRVersion = "0.0.0"
 	var pinned strings.Builder
-	for _, policy := range []plan.Policy{{}, {StrictExclusive: true}} {
+	for _, policy := range singleSwitchPolicies() {
 		raw, err := json.Marshal(policy, ir.CanonicalOptions())
 		require.NoError(t, err)
 		fmt.Fprintf(&pinned, "%s %s\n", build(t, doc, policy).Version, raw)
@@ -232,7 +240,7 @@ func TestPlan_RefusesToEncodeAStringThatIsNotUTF8(t *testing.T) {
 // decodes back to the value it encoded from.
 func TestPolicy_RoundTripsThroughJSON(t *testing.T) {
 	t.Parallel()
-	for _, policy := range []plan.Policy{{}, {StrictExclusive: true}} {
+	for _, policy := range singleSwitchPolicies() {
 		raw, err := json.Marshal(policy, ir.CanonicalOptions())
 		require.NoError(t, err)
 		var decoded plan.Policy

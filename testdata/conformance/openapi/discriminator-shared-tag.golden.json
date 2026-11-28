@@ -1,0 +1,255 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "enum-member": [
+      "anonymous",
+      "composed",
+      "openapi"
+    ],
+    "operation": [
+      "openapi"
+    ],
+    "operation-group": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "parameter": [
+      "openapi"
+    ],
+    "property": [
+      "composed",
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "service": [
+      "openapi"
+    ],
+    "type": [
+      "anonymous",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "A tag two subtypes carry",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "service/openapi/0",
+      "name": {
+        "source": "A tag two subtypes carry",
+        "canonical": "a_tag_two_subtypes_carry"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "type/anonymous/components/schemas/Cat/allOf/1/properties/petType": {
+      "kind": "literal",
+      "id": "type/anonymous/components/schemas/Cat/allOf/1/properties/petType",
+      "name": {
+        "hint": "pet_type"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat/allOf/1/properties/petType"
+      },
+      "value": {
+        "kind": "string",
+        "string": "cat"
+      },
+      "valueType": "string"
+    },
+    "type/openapi/components/schemas/Cat": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/Cat",
+      "name": {
+        "source": "Cat",
+        "canonical": "cat"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas/Cat/allOf/1/properties/petType",
+          "name": {
+            "source": "petType",
+            "canonical": "pet_type"
+          },
+          "wireName": "petType",
+          "type": {
+            "target": "type/anonymous/components/schemas/Cat/allOf/1/properties/petType",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/allOf/1/properties/petType"
+          }
+        }
+      ],
+      "base": {
+        "target": "type/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "cat",
+      "inputOnly": false
+    },
+    "type/openapi/components/schemas/Kitten": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/Kitten",
+      "name": {
+        "source": "Kitten",
+        "canonical": "kitten"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kitten",
+        "inferred": "discriminator-inference"
+      },
+      "base": {
+        "target": "type/openapi/components/schemas/Cat",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "cat",
+      "inputOnly": false
+    },
+    "type/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "type/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "property/openapi/components/schemas/Pet/properties/petType",
+          "name": {
+            "source": "petType",
+            "canonical": "pet_type"
+          },
+          "wireName": "petType",
+          "type": {
+            "target": "type/primitive/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "invisibleInEveryLifecycle": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/petType"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "property/openapi/components/schemas/Pet/properties/petType",
+        "mapping": {
+          "cat": "type/openapi/components/schemas/Cat"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "type/primitive/string": {
+      "kind": "primitive",
+      "id": "type/primitive/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "primitiveKind": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/inferred-discriminator",
+      "message": "the discriminator routes this schema by its name, \"Kitten\", a tag its \"petType\" rejects, admitting only \"cat\"; it carries \"cat\" instead, marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kitten"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "discriminator-shared-tag.yaml",
+      "hash": "a1923296e0b3ee757f3cb52e33ed287a6722f99972f272e2e228f5422c14fd0f"
+    }
+  ]
+}

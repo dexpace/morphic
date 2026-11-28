@@ -849,6 +849,39 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"only the declared discriminators' readings are reported")
 }
 
+// assertDiscriminatorSharedTag holds a subtype read alone: Kitten, composing a
+// Cat that pins the tag the mapping routes Cat by, carries that tag rather than
+// its name, so one tag routes to both, and only Kitten's reading is reported.
+func assertDiscriminatorSharedTag(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
+
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	require.True(t, ok, "the root of the hierarchy is a Model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat")}, pet.Discriminator.Mapping)
+
+	for _, tc := range []struct {
+		name, base string
+		inferred   ir.Inferred
+	}{
+		{"Cat", "Pet", ""},
+		{"Kitten", "Cat", openapi.DiscriminatorInferenceHeuristic},
+	} {
+		sub, ok := doc.Types[componentID(tc.name)].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", tc.name)
+		require.NotNil(t, sub.Base, "%s composes a base", tc.name)
+		assert.Equal(t, componentID(tc.base), sub.Base.Target, tc.name)
+		assert.Equal(t, "cat", sub.DiscriminatorValue, "%s carries the tag Cat pins", tc.name)
+		assert.Equal(t, tc.inferred, sub.Provenance.Inferred, tc.name)
+	}
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Kitten"), `it carries "cat" instead`)
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
+		"the mapping tags Cat, so only Kitten's reading is reported")
+}
+
 // assertInferredSets is assertDiscriminatorInferred for the variants pinning
 // a tag to several strings: each string mapped to the variant admitting it,
 // under a declared discriminator and an inferred one, and nothing read where

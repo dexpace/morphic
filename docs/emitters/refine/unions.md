@@ -84,7 +84,8 @@ them and match none. The golden spec's single-result envelope declares `result` 
 `null`, the last held by the reference.
 
 Under a tag or a key, `null` is a variant's payload rather than the union's value, as in an
-envelope `{kind, value}` whose `value` is `null`: the tag names that variant, which keeps it.
+envelope `{kind, value}` whose `value` is `null`: the variant the tag names keeps it, or, where the
+tag names several, the one recognition finds among them ([below](#a-value-no-variant-recognizes)).
 
 ## A value several variants admit
 
@@ -107,8 +108,9 @@ it is inclusive in the shape it travels in, which the plan proves once
   would be lost. A target whose types are structural, as TypeScript's are, holds the value as the
   one object it is, typed by the union, and needs no member per variant.
 
-A tag picks one variant, so a discriminated or key-tagged union is never inclusive, whatever
-`Exclusive` says.
+A tag picks one variant, recognition taking one of several it names
+([below](#a-value-no-variant-recognizes)), so a discriminated or key-tagged union is never
+inclusive, whatever `Exclusive` says.
 
 A variant admits a value when the value fits it at every position it reaches, read as the JSON wire
 lays it out ([TypePlan](../plan/types.md#variants-that-can-share-a-value)), a polymorphic base
@@ -202,17 +204,19 @@ The designs this was weighed against:
 
 ## A value no variant recognizes
 
-All four wire shapes decode in one order: the variant the tag or the key names, or the one
-recognition finds; then, on a discriminated union, for a tag that names none or no tag at all, the
-one recognition finds among the variants no tag routes to
-([below](#the-tag-a-variants-value-carries)); then `Discriminator.Default`; then, on an `Open` union
-([plan policy](../plan/policy.md)), the fallback; and otherwise a coded decode error. A tag that
-names a variant whose body fails to decode is an error either way: the variant is known, and the
-value does not match it. The fallback is one more variant, `Unknown`, holding the value as the
+All four wire shapes decode in one order: the variant the tag or the key names, the one recognition
+finds among those a tag names where it names several, or the one recognition finds; then, on a
+discriminated union, for a tag that names none or no tag at all, the one recognition finds among the
+variants no tag routes to ([below](#the-tag-a-variants-value-carries)); then
+`Discriminator.Default`; then, on an `Open` union ([plan policy](../plan/policy.md)), the fallback;
+and otherwise a coded decode error. A tag that names a variant whose body fails to decode is an
+error either way: the variant is known, and the value does not match it, as is one naming several
+that none of them admits. The fallback is one more variant, `Unknown`, holding the value as the
 target's untyped JSON value ([Go](../targets/go/unions.md#the-fallback),
 [Kotlin](../targets/kotlin/unions.md#the-fallback)). It re-encodes as the same JSON value, its
 members in order and each number's text intact. It has no factory, since only a response produces
-one, and one a caller sends back goes out as it came. A closed union declares none.
+one, and one a caller sends back goes out as it came. A closed union declares none. T-22 holds
+this section.
 
 ## Discriminators
 
@@ -239,11 +243,14 @@ that member as 10016. T-56 holds it.
 
 ## The tag a variant's value carries
 
-A value of a variant has to decode as that variant, so the tag it carries is one the discriminator
-routes there. A tag routes to a variant where `Discrim.Mapping` names the variant under it, compared
-as [above](#discriminators). The plan writes a union's routes out: the entries of the IR's
-`Mapping`, or, where the IR leaves it nil, each variant under the source name of its type, the name
-OpenAPI's implicit mapping routes by, which an anonymous variant lacks
+A value of a variant a tag routes to decodes through such a tag, so that is the tag it carries. A
+tag routes to a variant where `Discrim.Mapping` names the variant under it, compared as
+[above](#discriminators), and may name several, as it does two subtypes carrying one value
+([discriminator](../../ir/models.md#discriminator)), each owning it where its tag member admits it
+(below) and a value carrying it decoding as the one recognition finds among them ([a value no
+variant recognizes](#a-value-no-variant-recognizes)). The plan writes a union's routes out: the
+entries of the IR's `Mapping`, or, where the IR leaves it nil, each variant under the source name of
+its type, the name OpenAPI's implicit mapping routes by, which an anonymous variant lacks
 ([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry holds, beside the
 routes declared or inferred, the one the source implies to each variant they leave out, so a variant
 it leaves out has none.
@@ -258,9 +265,11 @@ of its variants, which owns the tags of the outer variant its own member admits.
 property the discriminator names, or the tuple element at its `TupleElementIndex`. Where the tag
 sits outside the variant's value, in an `Envelope` or as the one key of a key-tagged union, no
 declaration admits or refuses it, so every tag routing to a variant is its own, a key-tagged
-variant's being its wire name. A polymorphic base routes a subtype by its `DiscriminatorValue` as
-well as by its `Mapping` ([discriminator](../../ir/models.md#discriminator)), and the subtype owns
-each of those its member admits.
+variant's being its wire name. A polymorphic base routes a subtype by its `DiscriminatorValue`,
+where that is a tag of the base's discriminator
+([routes](../plan/types.md#a-discriminators-routes)), as well as by its `Mapping`
+([discriminator](../../ir/models.md#discriminator)), and the subtype owns each of those its member
+admits.
 
 - **Encoding.** A variant with one own tag writes it at the tag's member, whatever the value holds
   there, and adds the member where the variant declares none: the variant fixes its tag, so a caller
@@ -268,14 +277,21 @@ each of those its member admits.
   routes. A variant with several, as an alias in the mapping gives one, writes the tag its value
   holds, and a value holding none of them is a coded encode error, never a pick among them; in an
   envelope, where no member says which, it writes the first in the byte order of their texts, as the
-  compiler elects a subtype's `DiscriminatorValue`. A variant with none, one `Default` names or one
-  no tag routes to, writes its value as held, and a value whose tag routes to another variant is a
-  coded encode error, since decoding would hand it to that one, as is a value of `Default`'s that a
-  variant no tag routes to admits. So an encoded value decodes back to the variant that wrote it. A
-  factory takes the variant's value and sets nothing.
+  compiler elects a subtype's `DiscriminatorValue`. A variant with none, as one no tag routes to is,
+  whether or not `Default` names it, writes its value as held, and a value whose tag routes to
+  another variant is a coded encode error, since decoding would hand it to that one, as is a value
+  of `Default`'s that another variant no tag routes to admits. So an encoded value decodes back to
+  the variant that wrote it, unless another variant decoding tries it against admits it first in
+  recognition order, those its tag routes to or, where it routes to none, those no tag routes to:
+  `Kitten`, composing `Cat` and adding nothing, writes `cat`, which routes to both, and the two
+  admit the same values, so a value of whichever of them recognition tries second decodes as the
+  other. Which it tries first among a polymorphic base's variants no document says yet
+  (GitHub #2316). A factory takes the variant's value and sets nothing.
 - **Examples.** A value the plan synthesizes for a variant, and a member `plan.Shown` fills, takes
   the tag by the same rule ([one set of examples](../docs-and-mock.md#one-set-of-examples)), and a
-  declared example is checked as decoding reads it, by the variant its tag routes to.
+  declared example is checked as decoding reads it: where its tag routes to variants, held by the
+  one recognition finds among them and refused where none of them admits it, and otherwise in the
+  order [a value no variant recognizes](#a-value-no-variant-recognizes) gives.
 
 A variant no tag routes to is still a variant some value takes, so decoding finds it by recognition,
 as an untagged union finds a variant ([above](#variant-identity-and-recognition)), among the

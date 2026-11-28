@@ -4907,7 +4907,7 @@ ask. Two unions and a subtype meet it:
    admitting one string both carry it, as their instances do
    ([models](../ir/models.md#discriminator)).
 
-- Cases: `discriminator-inferred`
+- Cases: `discriminator-inferred`, `discriminator-shared-tag`
 - Codes: `openapi/inferred-discriminator`
 - Tests: `schema.TestDiscriminatorInference_MapsAnUnmappedDiscriminator`,
   `schema.TestDiscriminatorInference_LeavesADeclaredMapping`,

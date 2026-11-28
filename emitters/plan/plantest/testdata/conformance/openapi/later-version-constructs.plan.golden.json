@@ -24,6 +24,16 @@
       ]
     },
     "type/openapi/components/schemas/Item": {
+      "discrim": {
+        "mapping": {
+          "Novel": [
+            "type/openapi/components/schemas/Novel"
+          ]
+        },
+        "locator": "property",
+        "wireKey": "kind",
+        "default": "type/openapi/components/schemas/Novel"
+      },
       "flattened": [
         "property/openapi/components/schemas/Item/properties/kind"
       ],
@@ -43,6 +53,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

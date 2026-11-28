@@ -77,10 +77,10 @@
       "alias": "type/openapi/components/schemas/HintStr"
     },
     "type/anonymous/components/schemas/HintUses/oneOf/7": {
+      "alias": "type/openapi/components/schemas/HintObj",
       "flattened": [
         "property/openapi/components/schemas/HintObj/properties/a"
-      ],
-      "alias": "type/openapi/components/schemas/HintObj"
+      ]
     },
     "type/anonymous/components/schemas/Keyed/$defs/items": {
       "flattened": [
@@ -122,10 +122,10 @@
       "union": "one_of"
     },
     "type/anonymous/components/schemas/Positions/properties/decorated/oneOf/0": {
+      "alias": "type/openapi/components/schemas/Pet",
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/name"
-      ],
-      "alias": "type/openapi/components/schemas/Pet"
+      ]
     },
     "type/anonymous/components/schemas/Positions/properties/dictionary": {},
     "type/anonymous/components/schemas/Positions/properties/dictionary/additionalProperties": {
@@ -271,10 +271,10 @@
       ]
     },
     "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/5": {
+      "alias": "type/openapi/components/schemas/Pet",
       "flattened": [
         "property/openapi/components/schemas/Pet/properties/name"
-      ],
-      "alias": "type/openapi/components/schemas/Pet"
+      ]
     },
     "type/anonymous/components/schemas/Positions/properties/titledVariants/oneOf/6": {
       "flattened": [
@@ -501,6 +501,18 @@
       "union": "one_of"
     },
     "type/openapi/components/schemas/Kennel": {
+      "discrim": {
+        "mapping": {
+          "routed": [
+            "type/anonymous/components/schemas/Positions/properties/routed"
+          ],
+          "routedBranch": [
+            "type/anonymous/components/schemas/Positions/properties/routedBranch"
+          ]
+        },
+        "locator": "property",
+        "wireKey": "kind"
+      },
       "flattened": [
         "property/openapi/components/schemas/Kennel/properties/kind"
       ]
@@ -567,6 +579,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }
