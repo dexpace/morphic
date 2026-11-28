@@ -98,13 +98,15 @@ it.
 `sweep-prose-a-meaning-change-falsifies`
 
 - **Rule.** A change to what a field or a value means falsifies sentences stating the old meaning,
-  in any package and in `docs/`, which need none of the words
-  `references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies` greps for. Grep the
-  whole tree for the old meaning's words, the field's name among them, in the order a sentence
-  states them, and read each hit's sentence against the new meaning.
+  in any package and in `docs/`, the changed document's own code blocks included, which need none of
+  the words `references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies` greps for.
+  Grep the whole tree for the old meaning's words, the field's name among them, in the order a
+  sentence states them, and read each hit's sentence against the new meaning.
 - **Why.** #1370 made `Provenance.Source` name the patched document rather than the overlay, and
   three sentences crediting the overlay outlived several review rounds, one in
-  `docs/architecture.md`, outside the touched packages (#1680).
+  `docs/architecture.md`, outside the touched packages (#1680). An amended lookup in
+  `docs/emitters/contract/type-table.md` kept its old comparison in its own Go block (#2241 at
+  095e4ba4f).
 - **Probe.** `git grep -nE '<pattern>' -- . ':!testdata'`, as
   `(credit|Source).*overlay|overlay.*(credit|Source|index)|fallback` hit all three at `f060e417a`.
 

@@ -52,6 +52,8 @@ Passes: architecture §2.2.
   (`references/ir-lessons.md#widened-field-values`).
   A field naming another node bumps nothing (`references/ir-lessons.md#verdict-on-another-node`); a
   node changing kind at its ID bumps (`references/ir-lessons.md#kind-change-at-an-id-bumps`).
+- **Old wording.** Amending a rule sweeps the sentences that stated it, code blocks included
+  (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-prose-a-meaning-change-falsifies`).
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
 - **Breaking.** A version bump's title takes `!`, and its commit and PR bodies say what an older
   consumer sees (`docs/ir/ir-version.md`, `morphic-shipping-prs`).
