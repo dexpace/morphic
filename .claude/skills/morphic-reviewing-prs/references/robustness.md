@@ -34,6 +34,8 @@ allows. It loads `morphic-designing-code` and `morphic-measuring-performance`.
    (`references/robustness.md#new-route-open-bugs`).
 7. For each runtime behaviour a document under `docs/emitters` states, bound what a caller or a
    server controls (`references/robustness.md#runtime-rule-bounds-what-a-server-sends`).
+8. Read each guard of a boundary whole after its last design change, and decide what it settles
+   between askers by a table (`references/robustness.md#boundary-guard-read-whole`).
 
 The matrix is each new limit, foreign call and read, with the input that tests it and both builds'
 results.
@@ -69,3 +71,17 @@ results.
   `1E+999999999` decoded from twelve characters would expand into a billion digits (#1744).
 - **Probe.** `grep -nE 'writes|reads|sends|retries|follows' <document>`, and for each clause name
   the hostile response that grows it.
+
+## Read a boundary guard whole after its last design change
+`boundary-guard-read-whole`
+
+- **Rule.** Code guarding a boundary, such as the addresses a read may dial, is read whole by one
+  reader after its last design change. What it settles between askers is decided by a table of
+  every order of askers by every route a read takes, redirects included, each row run; and that
+  decision is a design change, read whole again.
+- **Why.** Point reviews of #1940's address guard, `engine/reader/netguard.go`, found four defects
+  while it was written; a whole reading found three more and a decision, settled by a table; reading
+  it whole again found that decision serving a redirected read in one order and refusing it in the
+  other (#1940).
+- **Probe.** The report names the guard's last design commit, the whole reading after it, and each
+  table row's verdict in both orders.

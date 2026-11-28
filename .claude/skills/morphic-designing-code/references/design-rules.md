@@ -254,6 +254,34 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Probe.** Write the mixed spelling (a `oneOf` beside an `allOf` whose partner sits on an entry)
   and compile it beside each pure spelling.
 
+## Fold several declarations of one thing from the whole set
+`fold-the-whole-set`
+
+- **Rule.** A merge of several declarations of one thing chooses from all of them at once, never
+  folding each into what the ones before it left; refuses values the result cannot admit before any
+  first-wins tiebreak; reports every drop; and bounds any pairwise judgement it makes. Sweep it with
+  three declarations in all six orders, as pairs cannot show a chain's order dependence.
+- **Why.** #1000's allOf merge first folded a field's declarations as a chain, so
+  `int32, uint32, uint16` reported an overlap and kept `uint32` verbatim while
+  `uint16, int32, uint32` reported nothing; a 741-pair sweep was clean, and only triples showed it
+  (#1000).
+- **Probe.** The triple sweep in every order gives each result and report alike, up to the ties
+  the merge reports.
+
+## Refuse a callback's whole operation through one choke point
+`refusal-inside-a-callback`
+
+- **Rule.** An API that records refusals for a later report and runs a caller's callback refuses
+  the enclosing operation when anything inside the callback is refused, marked where every refusal
+  passes (as `refuse` in `ir/edit.go` does) and cleared by `defer`; loses nothing to a report or
+  drain called inside the callback; and rolls back, not only reports, a bad state found late.
+- **Why.** `ir.Editor`'s change callback applied an update whose own write was refused, a drain
+  inside it discarded earlier refusals, a node moved off its key was reported but kept, a mark set
+  at some refusal sites missed a call refusing earlier, and a panicking change left the mark set
+  (#1097).
+- **Probe.** Each case against a control edit making no misuse: the update is absent and its
+  refusal reported.
+
 ## A reused reader's fallback must suit its new caller's decision
 `fallback-suits-the-decision`
 
@@ -291,6 +319,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   (#785, #1140), and five panic barriers rendered what they caught each its own way until
   `barrier.Catch` alone did (#1130).
 - **Probe.** List the domain types each new declaration names; one naming none is a candidate.
+
+## Order a struct's fields for the size `fieldalignment` reports as optimal
+`fields-in-optimal-size-order`
+
+- **Rule.** A production struct a change adds or grows orders its fields to the size
+  `fieldalignment` reports as optimal, `ir` structs included, and keeps that order over the one a
+  document lists. JSON v2 encodes members in declaration order, which the shape pin ignores, so
+  goldens move and `IRVersion` does not. No lint holds it until #2300 lands.
+- **Why.** #1388 packed `ir.HTTPBinding` and `ir.PartEncoding`; a revert to the order `docs/ir`
+  lists was undone at the maintainer's request, and the packing moved 50 goldens in member order
+  alone (#1388).
+- **Probe.** Over each package the change touches,
+  `go run golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment ./<package> 2>&1 | grep 'optimal size' | grep -v '_test.go'`
+  names no struct the change adds or grows.
 
 ## Keep build constraints out of production files
 `no-build-constrained-production-file`

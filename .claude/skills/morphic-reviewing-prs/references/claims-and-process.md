@@ -52,14 +52,29 @@ The matrix is each claim class with the members checked, and each closed issue w
   (`references/claims-and-process.md#citation-per-case`), no claim resting on an open PR's head
   (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement
   against its `docs/parser-library.md` entry, quoted command run from the root, script run in each
-  context (a subdirectory, each platform branch), body sentence on the final tree, each construct a
-  rule settles (`references/claims-and-process.md#tracker-on-what-a-rule-settles`) and each edited
-  rule (`references/claims-and-process.md#edited-rule-against-its-neighbours`). A class sampled is
+  context (a subdirectory, each platform branch), body sentence on the final tree, normative
+  sentence (`references/claims-and-process.md#normative-sentence-probed`), construct a rule settles
+  (`references/claims-and-process.md#tracker-on-what-a-rule-settles`) and edited rule
+  (`references/claims-and-process.md#edited-rule-against-its-neighbours`). A class sampled is
   reported unreviewed, never clean.
 - **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
   unsampled. Whys pinned claims to moving open PRs (#1409, #1425).
 - **Probe.** The report gives each class and the members checked; fewer than all is a round still
   open.
+
+## Probe each sentence a change writes in a normative document
+`normative-sentence-probed`
+
+- **Rule.** Each sentence a change adds or edits in a normative document (`docs/ir/`,
+  `docs/emitters/`, `docs/compilers/openapi.md`), Status lines and limits included, is probed in
+  the first round by an input compiled on the head, with `main`'s build as control. One no compiled
+  input can show, as in `docs/emitters/` before an emitter exists, takes
+  `references/design.md#review-design-rules`.
+- **Why.** Round three of #1940 probed about 105 statements in its documents and found 13 false, 11
+  in the documents and 2 in the code, after two rounds of code review had passed them, its reviewer
+  finding no recipe for the work (#1940).
+- **Probe.** The report gives each sentence its input and both builds' output, for every line this
+  lists: `git diff -U0 "$b"...HEAD -- docs/ir docs/emitters docs/compilers/openapi.md | grep '^+[^+]'`.
 
 ## Read a citation against every case the citing text sends to it
 `citation-per-case`

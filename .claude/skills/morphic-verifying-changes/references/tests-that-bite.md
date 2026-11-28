@@ -174,3 +174,28 @@ is not behaviour held.
 - **Probe.** In a sequential table, plant a defect only the first row reaches that changes what the
   Rule names and lets every later row run, then count the failing rows by their indent:
   `go test -count=1 -run '^<Test>$' ./<package> | grep -cE '^ {4}--- FAIL: <Test>/'` prints 1.
+
+## Test a copy, or a read its owner hands out, by writing after taking it
+`write-after-the-copy-or-read`
+
+- **Rule.** Test a copy by writing into it (append to a slice, set a map key) and asserting the
+  original unchanged, and a read its owner hands out by keeping it across the owner's later writes,
+  before and after the first. On a copier that fills a whole struct before refilling its reference
+  fields, plant skipping a refill as well as zeroing a field.
+- **Why.** `ir/clone.go` prefills with `dst.Set(v)`, so a mutant skipping an empty map left the
+  copy sharing the original's past a test asserting the copy's values (#1097); a group read stayed
+  stable until its slice was compacted in place, then skipped an element, past a random test
+  comparing each read at once (#1145).
+- **Probe.** The planted skipped refill reddens the test writing into the copy.
+
+## Let a random test run several operations between its checks
+`random-test-leaves-state-pending`
+
+- **Rule.** Where the code defers work (pending removals, caches, dirty flags), a random or model
+  test runs several operations between its oracle's checks and observes some mid-operation: a check
+  reading through the path that settles the state settles it every step. Plant a defect that needs
+  the pending state, and see the random test alone redden.
+- **Why.** The editor's random test compared every read after each edit, so no removal was pending
+  when the next update ran, and three planted defects passed it; one to three edits between checks
+  killed all three (#1145).
+- **Probe.** The plant, run against the random test alone.
