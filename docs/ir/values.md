@@ -93,8 +93,8 @@ null example is read two ways by where the OpenAPI compiler places it
 ([`schema-examples`](../compilers/openapi.md#schema-examples)): left on a type, as an enum's or a
 named schema's is, it says the example is absent, while one moved onto a required parameter or a
 property, as a string schema's is, is judged as the position's own. One reading for it wherever it
-lands is a decision of its own. The emitter contract still holds a null example of a parameter or a
-header that is not required to its type ([one set of
+lands is a decision of its own (#2312). The emitter contract still holds a null example of a
+parameter or a header that is not required to its type ([one set of
 examples](../emitters/docs-and-mock.md#one-set-of-examples)), which #2180 proposes to change.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
