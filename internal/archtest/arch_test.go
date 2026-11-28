@@ -572,8 +572,9 @@ var rules = map[string][]string{
 	// (ownEntryRequired), and none goes in exempt (mayBeExempt).
 	"emitters": {module + "/ir"},
 	// The plan every emitter reads, derived once for all of them. It reaches ir
-	// and the facts derived from it and nothing else yet, so it can read no naming
-	// policy, runtime policy or target (docs/emitters/plan/plan-or-refine.md).
+	// and the facts derived from it and nothing else yet, so it cannot read a
+	// target's naming data, a runtime policy or a target
+	// (docs/emitters/plan/plan-or-refine.md).
 	"emitters/plan": {module + "/ir", module + "/ir/irfacts"},
 	// The strict reading every configuration shares
 	// (docs/emitters/contract/options.md). It reaches the standard library
