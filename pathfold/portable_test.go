@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/pathfold"
 )
 
-const streamSafePhrase = "holds more marks in a row than Unicode's stream-safe form"
+const markRunPhrase = "holds more than 30 combining marks in a row"
 
 func TestPortable_RefusesWhatSomeFileSystemRefuses(t *testing.T) {
 	t.Parallel()
@@ -83,10 +83,13 @@ func TestPortable_RefusesWhatSomeFileSystemRefuses(t *testing.T) {
 		{name: "noncharacter U+FFFE", segment: "a\ufffe", wantPhrase: "holds U+FFFE, which Unicode leaves unassigned"},
 		{name: "noncharacter U+FDD0", segment: "a\ufdd0", wantPhrase: "holds U+FDD0, which Unicode leaves unassigned"},
 		{name: "noncharacter U+10FFFF", segment: "a\U0010ffff", wantPhrase: "holds U+10FFFF, which Unicode leaves unassigned"},
-		{name: "31 marks", segment: "a" + strings.Repeat("\u0301", 31), wantPhrase: streamSafePhrase},
-		{name: "32 marks", segment: "a" + strings.Repeat("\u0301", 32), wantPhrase: streamSafePhrase},
-		{name: "31 marks counting a composed letter's", segment: "\u00e9" + strings.Repeat("\u0301", 30), wantPhrase: streamSafePhrase},
-		{name: "31 marks counting decomposed ones", segment: "a\u0301" + strings.Repeat("\u0344", 15), wantPhrase: streamSafePhrase},
+		{name: "31 marks", segment: "a" + strings.Repeat("\u0301", 31), wantPhrase: markRunPhrase},
+		{name: "32 marks", segment: "a" + strings.Repeat("\u0301", 32), wantPhrase: markRunPhrase},
+		{name: "31 marks counting a composed letter's", segment: "\u00e9" + strings.Repeat("\u0301", 30), wantPhrase: markRunPhrase},
+		{name: "31 marks counting decomposed ones", segment: "a\u0301" + strings.Repeat("\u0344", 15), wantPhrase: markRunPhrase},
+		{name: "31 marks after a Hangul syllable", segment: "\uac01" + strings.Repeat("\u0316", 31), wantPhrase: markRunPhrase},
+		{name: "31 marks counting one a composed sign holds", segment: "\u0385" + strings.Repeat("\u0316", 30), wantPhrase: markRunPhrase},
+		{name: "31 marks after a sign of class zero", segment: "\u00a8" + strings.Repeat("\u0316", 31), wantPhrase: markRunPhrase},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -129,6 +132,14 @@ func TestPortable_Admits(t *testing.T) {
 		{name: "delete U+007F", segment: "a\u007f"},
 		{name: "leading byte-order mark", segment: "\ufeffa"},
 		{name: "bidi override U+202E", segment: "a\u202e"},
+		{name: "85 conjoining vowels", segment: strings.Repeat("\u1161", 85)},
+		{name: "85 conjoining final consonants", segment: strings.Repeat("\u11a8", 85)},
+		{name: "85 Bengali vowel signs", segment: strings.Repeat("\u09be", 85)},
+		{name: "40 halfwidth voiced sound marks", segment: strings.Repeat("\uff9e", 40)},
+		{name: "30 marks either side of a conjoining vowel", segment: "a" + strings.Repeat("\u0316", 30) + "\u1161" + strings.Repeat("\u0316", 30)},
+		{name: "30 marks after a Hangul syllable", segment: "\uac01" + strings.Repeat("\u0316", 30)},
+		{name: "30 marks counting one a composed sign holds", segment: "\u0385" + strings.Repeat("\u0316", 29)},
+		{name: "30 marks after a sign of class zero", segment: "\u00a8" + strings.Repeat("\u0316", 30)},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

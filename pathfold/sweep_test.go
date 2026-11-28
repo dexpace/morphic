@@ -39,6 +39,7 @@ type apfsRecord struct {
 	tables  string
 	sweeps  map[string]sweepRecord
 	apart   map[string][][][]string
+	wrote   []string
 	refused []string
 }
 
@@ -52,8 +53,8 @@ type sweepRecord struct {
 // that a case-insensitive APFS volume collapses into one file across the T-52
 // sweeps, verifies every weaker fold parts at least one file, checks
 // idempotence across all generated names, and holds pathfold.Portable to the
-// code points APFS refused. The record at testdata/apfs.golden.txt is
-// rewritten only on macOS with -update.
+// code points APFS refused and the runs of class zero it wrote. The record at
+// testdata/apfs.golden.txt is rewritten only on macOS with -update.
 func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
 	sweeps := []sweepInput{
 		{name: "characters", names: generateCharacterSweep()},
@@ -103,6 +104,13 @@ func TestFold_JoinsWhatAPFSJoins(t *testing.T) {
 			checkWeakerFoldsSplitFiles(t, sweeps, partitions)
 		})
 	}
+
+	t.Run("runs of class zero", func(t *testing.T) {
+		require.Empty(t, cmp.Diff(classZeroRuns(), record.wrote), "names APFS wrote (-want +got)")
+		for _, name := range record.wrote {
+			assert.NoError(t, pathfold.Portable(name), "APFS wrote %+q", name)
+		}
+	})
 
 	t.Run("refused code points", func(t *testing.T) {
 		if record.tables != currentTablesLine() {
@@ -265,6 +273,36 @@ func generateMarkRunSweep() []string {
 	return slices.Compact(out)
 }
 
+// classZeroRuns are names holding long runs of characters of class zero that
+// norm.NFD counts as non-starters, which APFS writes at every length a segment
+// holds.
+func classZeroRuns() []string {
+	return []string{
+		strings.Repeat("\u1161", 85),
+		strings.Repeat("\u11a8", 85),
+		strings.Repeat("\u09be", 85),
+		strings.Repeat("\uff9e", 40),
+		"a" + strings.Repeat("\u0316", 30) + "\u1161" + strings.Repeat("\u0316", 30),
+	}
+}
+
+// writtenOnAPFS creates each of names in an empty directory, requiring APFS to
+// write it, and returns them as record lines.
+func writtenOnAPFS(t *testing.T, names []string) []string {
+	t.Helper()
+	dir := t.TempDir()
+	lines := make([]string, 0, len(names))
+	for _, name := range names {
+		require.LessOrEqual(t, longestMarkRun(name), maxMarksInARow, "%+q holds more marks in a row than APFS writes", name)
+		target := filepath.Join(dir, name)
+		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		require.NoError(t, err, "create %+q", name)
+		require.NoError(t, file.Close(), "close %+q", name)
+		lines = append(lines, "wrote "+strconv.QuoteToASCII(name))
+	}
+	return lines
+}
+
 // longestMarkRun counts the longest run of marks in name's decomposition, each
 // character decomposed alone, which orders no mark and so moves none across a
 // starter.
@@ -318,8 +356,8 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 	assertCaseAndNormInsensitiveVolume(t)
 
 	var out bytes.Buffer
-	out.WriteString("# which names APFS made one file and which code points it refused, for TestFold_JoinsWhatAPFSJoins; " +
-		"rewritten on macOS by -update\n")
+	out.WriteString("# which names APFS made one file, which it wrote and which code points it refused, " +
+		"for TestFold_JoinsWhatAPFSJoins; rewritten on macOS by -update\n")
 	fmt.Fprintf(&out, "tables %s\n", currentTablesLine())
 
 	var apartBuffer bytes.Buffer
@@ -335,6 +373,10 @@ func recordAPFSSweeps(t *testing.T, sweeps []sweepInput) []byte {
 		}
 	}
 	out.Write(apartBuffer.Bytes())
+	for _, line := range writtenOnAPFS(t, classZeroRuns()) {
+		out.WriteString(line)
+		out.WriteByte('\n')
+	}
 	for _, line := range codePointRanges(refusedOnAPFS(t)) {
 		fmt.Fprintf(&out, "refused %s\n", line)
 	}
@@ -584,6 +626,10 @@ func parseAPFSRecord(t *testing.T, recordPath string, raw []byte) apfsRecord {
 		case "apart":
 			name, groups := parseApartLine(t, recordPath, lineNumber+1, rest)
 			record.apart[name] = append(record.apart[name], groups)
+		case "wrote":
+			name, err := strconv.Unquote(rest)
+			require.NoError(t, err, "%s:%d: malformed written name %q", recordPath, lineNumber+1, rest)
+			record.wrote = append(record.wrote, name)
 		case "refused":
 			record.refused = append(record.refused, rest)
 		default:

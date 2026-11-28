@@ -13,8 +13,8 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// combiningGraphemeJoiner is U+034F, which norm.NFD writes into a run of marks
-// longer than Unicode's stream-safe form allows.
+// combiningGraphemeJoiner is U+034F, which norm.NFD writes after 30 characters
+// in a row that it counts as non-starters.
 const combiningGraphemeJoiner = "\u034f"
 
 // Fold returns name folded as a case-insensitive, normalization-insensitive
@@ -22,8 +22,8 @@ const combiningGraphemeJoiner = "\u034f"
 // simple upper-casing of each rune, then Unicode full case folding
 // (docs/emitters/emit/rules.md).
 //
-// The decomposition is whole: a run of marks norm.NFD's stream-safe form cuts
-// is ordered across the cut.
+// The decomposition is whole: marks are ordered across a cut norm.NFD makes in
+// a long run.
 //
 // Any byte that is not valid UTF-8 is read as U+FFFD, joining rather than
 // splitting invalid spellings; [Portable] refuses such segments.
@@ -34,9 +34,10 @@ func Fold(name string) string {
 }
 
 // decomposeStreamSafe returns name as norm.NFD decomposes it and whether that
-// cut a run of marks: norm.NFD writes Unicode's stream-safe form, a U+034F
-// after 30 marks in a row, and orders no mark across one. It removes none, so
-// a decomposition holding none cut nothing and name is not counted.
+// cut a run: norm.NFD writes a U+034F after 30 characters in a row it counts as
+// non-starters, the combining marks and some characters of class zero, and
+// orders no mark across one. It removes none, so a decomposition holding none
+// cut nothing and name is not counted.
 func decomposeStreamSafe(name string) (decomposed string, cut bool) {
 	decomposed = norm.NFD.String(name)
 	written := strings.Count(decomposed, combiningGraphemeJoiner)
@@ -81,4 +82,20 @@ func decomposeUncut(name string) string {
 // for a starter.
 func combiningClass(character rune) uint8 {
 	return norm.NFD.PropertiesString(string(character)).CCC()
+}
+
+// longestMarkRun returns the most combining marks name holds in a row: the
+// characters of a non-zero canonical combining class, counted in its canonical
+// decomposition, where a letter composed with a mark adds one.
+func longestMarkRun(name string) int {
+	longest, run := 0, 0
+	for _, character := range decomposeUncut(name) {
+		if combiningClass(character) == 0 {
+			run = 0
+			continue
+		}
+		run++
+		longest = max(longest, run)
+	}
+	return longest
 }

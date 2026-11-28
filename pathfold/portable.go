@@ -17,6 +17,7 @@ var ErrNotPortable = errors.New("path segment is not portable")
 
 const (
 	maxSegmentBytes            = 255
+	maxMarkRun                 = 30
 	windowsForbiddenCharacters = "<>:\"/\\|?*"
 )
 
@@ -26,8 +27,9 @@ const (
 //
 // Refused segments are empty, invalid UTF-8, longer than 255 bytes, hold a
 // control character below U+0020, a Windows-forbidden character, a code point
-// the build's Unicode tables leave unassigned or a run of marks norm.NFD cuts,
-// end in a dot or a space, or name a Windows device before the first dot.
+// the build's Unicode tables leave unassigned or more than 30 combining marks
+// in a row, end in a dot or a space, or name a Windows device before the first
+// dot.
 func Portable(segment string) error {
 	if segment == "" {
 		return fmt.Errorf("segment %.64q is empty: %w", segment, ErrNotPortable)
@@ -46,9 +48,9 @@ func Portable(segment string) error {
 			return fmt.Errorf("segment %.64q holds %U, which Unicode leaves unassigned: %w", segment, r, ErrNotPortable)
 		}
 	}
-	if _, cut := decomposeStreamSafe(segment); cut {
-		return fmt.Errorf("segment %.64q holds more marks in a row than Unicode's stream-safe form: %w",
-			segment, ErrNotPortable)
+	if longestMarkRun(segment) > maxMarkRun {
+		return fmt.Errorf("segment %.64q holds more than %d combining marks in a row: %w",
+			segment, maxMarkRun, ErrNotPortable)
 	}
 	last := segment[len(segment)-1]
 	if last == '.' || last == ' ' {

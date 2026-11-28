@@ -263,20 +263,20 @@ throughout these documents.
     manifest's own, its pending twin's or that one's temporary file's, or lies under any of them, in
     any letter case; a segment of 86 three-byte characters, 258 bytes, where one of 85 is admitted;
     a segment holding an unassigned code point or a noncharacter, where a private-use one is
-    admitted; one of 31 marks in a row, where 30 is admitted; each Windows device name the rule
-    lists, `conin$` and `com¹` among them, before a first dot in two letter cases, before the first
-    of two (`aux.v1.go`) and before spaces and a dot (`nul .txt`); each character Windows refuses,
-    U+001F among them; a trailing dot or space, where a space inside a segment is admitted; a file's
-    name of 236 bytes, where one of 235 is admitted; an empty path, an absolute one, one holding
-    `\`, a `.` or `..` segment or an empty one (`a//b`, `a/./b`); a header line that lacks the
-    marker where `Header` says it stands, and a placement outside the three; and no artifact with
-    neither an error diagnostic nor a `no-artifacts` warning (where a generation carrying an error
-    diagnostic alone is admitted). The checks' work grows as the artifacts do, over paths nested
-    three directories deep. A template that fails the formatter draws a located error and no
-    artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
-    nothing and a document with nothing to emit each draw `no-artifacts`. A path reaching a sibling
-    that shares the root's prefix does so through `..`, the breach above, and a symlink in the tree
-    that leaves the root is refused by the writer.
+    admitted; one of 31 marks in a row, where 30 is admitted, and 85 conjoining vowels, of class
+    zero, are; each Windows device name the rule lists, `conin$` and `com¹` among them, before a
+    first dot in two letter cases, before the first of two (`aux.v1.go`) and before spaces and a dot
+    (`nul .txt`); each character Windows refuses, U+001F among them; a trailing dot or space, where
+    a space inside a segment is admitted; a file's name of 236 bytes, where one of 235 is admitted;
+    an empty path, an absolute one, one holding `\`, a `.` or `..` segment or an empty one (`a//b`,
+    `a/./b`); a header line that lacks the marker where `Header` says it stands, and a placement
+    outside the three; and no artifact with neither an error diagnostic nor a `no-artifacts` warning
+    (where a generation carrying an error diagnostic alone is admitted). The checks' work grows as
+    the artifacts do, over paths nested three directories deep. A template that fails the formatter
+    draws a located error and no artifact, and a build with and without `-trimpath` give identical
+    artifacts. A `Scope` matching nothing and a document with nothing to emit each draw
+    `no-artifacts`. A path reaching a sibling that shares the root's prefix does so through `..`,
+    the breach above, and a symlink in the tree that leaves the root is refused by the writer.
 26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
     each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
     not change, and adding a first header or a further one is additive in the surface differ
