@@ -75,6 +75,8 @@ var apiRoots = map[string]string{
 	"emitters/typemap.Merge":               typeTableAPI,
 	"emitters/typemap.Moved":               typeTableAPI,
 	"emitters/typemap.Missing":             typeTableAPI,
+	"emitters/typemap.Lookup":              typeTableAPI,
+	"emitters/typemap.LookupExternal":      typeTableAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with
