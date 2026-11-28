@@ -25,12 +25,12 @@ func Digest(content []byte) string {
 	trimmed := bytes.TrimPrefix(content, []byte(utf8BOM))
 	normalized := make([]byte, 0, len(trimmed))
 	for line := range bytes.Lines(trimmed) {
-		content, endsLine := bytes.CutSuffix(line, []byte("\n"))
+		lineWithoutNewline, endsLine := bytes.CutSuffix(line, []byte("\n"))
 		if !endsLine {
 			normalized = append(normalized, line...)
 			continue
 		}
-		normalized = append(append(normalized, bytes.TrimRight(content, "\r")...), '\n')
+		normalized = append(append(normalized, bytes.TrimRight(lineWithoutNewline, "\r")...), '\n')
 	}
 	normalized = bytes.TrimRight(normalized, "\n")
 	sum := sha256.Sum256(normalized)

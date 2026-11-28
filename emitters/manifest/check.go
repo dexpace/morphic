@@ -130,6 +130,10 @@ func checkPendingKnown(known map[string][]string) error {
 	return nil
 }
 
+// checkPendingTemporaryFiles admits a temporary file that is also a known path: a
+// later generation can hold a name an earlier pending manifest recorded
+// (docs/emitters/write-integrate.md, apply step 2). How the planner treats such
+// a file is the planner's to decide (GitHub #2246).
 func checkPendingTemporaryFiles(temporaryFiles []string, known map[string][]string) error {
 	seenTemporaryFiles := make(map[string]bool, len(temporaryFiles))
 	for _, temporaryFile := range temporaryFiles {
