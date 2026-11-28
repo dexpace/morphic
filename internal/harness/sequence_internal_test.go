@@ -367,7 +367,20 @@ func TestReverseSequences_APermutationThatDoesNotParseIsDeclined(t *testing.T) {
 
 	got, _, why := reverseSequences([]byte("allOf: [a, b]\n"))
 
-	assert.Equal(t, DeclinePermutationUnparsable, why)
+	assert.Equal(t, DeclineReencodingUnparsable, why)
+	assert.Nil(t, got)
+}
+
+// TestReverseSequences_APermutationThatReadsOtherwiseIsDeclined is the
+// counterpart of TestReverseMappings_APermutationThatReadsOtherwiseIsDeclined.
+func TestReverseSequences_APermutationThatReadsOtherwiseIsDeclined(t *testing.T) {
+	orig := encodeYAML
+	t.Cleanup(func() { encodeYAML = orig })
+	encodeYAML = func([]*yaml.Node) ([]byte, error) { return []byte("allOf: [b, c]\n"), nil }
+
+	got, _, why := reverseSequences([]byte("allOf: [a, b]\n"))
+
+	assert.Equal(t, DeclineReencodingReadsOtherwise, why)
 	assert.Nil(t, got)
 }
 

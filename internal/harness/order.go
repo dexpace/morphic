@@ -325,19 +325,15 @@ const maxPermutedDocuments = 1024
 // reencodeMappings returns src parsed and re-encoded with its entry order
 // intact, every document of its stream: the same normalization reverseMappings
 // applies, minus the permutation. It is what the permuted source is compared
-// against, so a spelling the encoder rewrites (a flow-style implicit null comes
-// back as an empty string) changes both sides alike. A Decline says why there is
+// against, so a spelling the encoder rewrites (a block scalar comes back
+// double-quoted) changes both sides alike. A Decline says why there is
 // no re-encoding; it is empty when there is one.
 func reencodeMappings(src []byte) ([]byte, Decline) {
 	docs, why := parseStream(src)
 	if why != "" {
 		return nil, why
 	}
-	out, err := encodeYAML(docs)
-	if err != nil {
-		return nil, DeclineUnencodable
-	}
-	return out, ""
+	return encodeFaithfully(docs)
 }
 
 // reverseMappings returns src with the entry order of every YAML mapping
@@ -348,7 +344,8 @@ func reencodeMappings(src []byte) ([]byte, Decline) {
 //
 // Reversing can carry an alias above its anchor, which YAML forbids, so each
 // anchor moves to the first place naming it (hoistAnchors). A permutation that
-// does not parse again is declined, as the rewrite's fault, not the compiler's.
+// does not read back as written is declined, as the rewrite's fault, not the
+// compiler's (encodeFaithfully).
 func reverseMappings(src []byte) ([]byte, Decline) {
 	docs, why := parseStream(src)
 	if why != "" {
@@ -362,23 +359,17 @@ func reverseMappings(src []byte) ([]byte, Decline) {
 			return nil, why
 		}
 	}
-	out, err := encodeYAML(docs)
-	if err != nil {
-		return nil, DeclineUnencodable
-	}
-	if _, why := parseStream(out); why != "" {
-		return nil, DeclinePermutationUnparsable
-	}
-	return out, ""
+	return encodeFaithfully(docs)
 }
 
 // parseStream parses src as a YAML stream, a node per document, or says why
 // it cannot: it does not parse, or holds more documents than the rewrite reads.
-// It parses with the YAML library alone, which lexes YAML 1.1, so a source only
-// the compiler's reader reads is declined as not YAML (#1768): a JSON one
-// writing a surrogate pair, and a YAML one writing an escaped slash, a pair of
-// surrogate escapes or a raw U+0085, U+2028 or U+2029 in a comment, or opening
-// with a %YAML 1.2 directive.
+// It reads with the YAML library, which lexes YAML 1.1 (#1768), so it declines
+// as not YAML what only the compiler reads: a JSON source writing a surrogate
+// pair, and a YAML one writing an escaped slash, a pair of surrogate escapes, a
+// raw U+0085, U+2028 or U+2029 in a comment, or a %YAML 1.2 directive first.
+// Such a character raw in a scalar ends a line, where the compiler reads a
+// character.
 func parseStream(src []byte) ([]*yaml.Node, Decline) {
 	dec := yaml.NewDecoder(bytes.NewReader(src))
 	var docs []*yaml.Node
@@ -397,16 +388,96 @@ func parseStream(src []byte) ([]*yaml.Node, Decline) {
 }
 
 // encodeYAML encodes a parsed or permuted stream. It is a package-level seam:
-// a tree that has just parsed cannot fail to re-encode, nor encode to text that
-// does not parse, and tests replace it to drive those otherwise-unreachable
-// defensive paths, as reserializeJSON is a seam over json.Marshal for the same
-// reason.
+// a tree that has just parsed cannot fail to re-encode, nor, once
+// encodeFaithfully has restyled it, encode to text that does not read back, and
+// tests replace it to drive those otherwise-unreachable defensive paths, as
+// reserializeJSON is a seam over json.Marshal for the same reason.
 var encodeYAML = func(docs []*yaml.Node) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := encodeStream(&buf, docs); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// encodeFaithfully encodes a parsed or permuted stream and parses the encoding
+// back, or says why it cannot stand for the stream: a tree nested past the
+// bound, one the encoder refuses, text that does not parse, or text that reads
+// otherwise. What the encoder would write otherwise is restyled first
+// (restyleScalars). The read-back is the YAML library's (parseStream), so it
+// cannot see the compiler read the text otherwise;
+// TestEncodeFaithfully_CompilesAsTheSourceDoes holds the compiler to it.
+func encodeFaithfully(docs []*yaml.Node) ([]byte, Decline) {
+	for _, doc := range docs {
+		if why := restyleScalars(doc, 0); why != "" {
+			return nil, why
+		}
+	}
+	out, err := encodeYAML(docs)
+	if err != nil {
+		return nil, DeclineUnencodable
+	}
+	read, why := parseStream(out)
+	if why != "" {
+		return nil, DeclineReencodingUnparsable
+	}
+	if len(read) != len(docs) {
+		return nil, DeclineReencodingReadsOtherwise
+	}
+	for i, doc := range docs {
+		if why := readsBackAsWritten(doc, read[i], 0); why != "" {
+			return nil, why
+		}
+	}
+	return out, ""
+}
+
+// restyleScalars double-quotes each literal or folded scalar at or below node,
+// keeping its tag, which the encoder would drop where the value resolves to it
+// plain, and tags each empty null. In block style, a value led by whitespace
+// or a break, holding a more-indented line, U+2028 or U+2029, or kept and
+// ending blank encodes to text that does not parse or reads otherwise;
+// double-quoted, each line break is escaped. Untagged, an empty null encodes
+// as an empty string in a flow collection or key, and as nothing at a first
+// document's root. It declines a tree past the bound.
+func restyleScalars(node *yaml.Node, depth int) Decline {
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
+	}
+	if node.Kind == yaml.ScalarNode && node.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
+		node.Style = node.Style&yaml.TaggedStyle | yaml.DoubleQuotedStyle
+	}
+	if node.Kind == yaml.ScalarNode && node.Value == "" && node.ShortTag() == nullTag {
+		node.Style |= yaml.TaggedStyle
+	}
+	for _, child := range node.Content {
+		if why := restyleScalars(child, depth+1); why != "" {
+			return why
+		}
+	}
+	return ""
+}
+
+// nullTag is the tag the YAML library resolves an implicit null to.
+const nullTag = "!!null"
+
+// readsBackAsWritten declines read, a node of an encoding parsed back, where it
+// or a node below it differs from its counterpart in written in kind, resolved
+// tag, value or number of entries, and a tree nested past the bound.
+func readsBackAsWritten(written, read *yaml.Node, depth int) Decline {
+	if depth > maxReverseDepth {
+		return DeclineTooDeep
+	}
+	if written.Kind != read.Kind || written.ShortTag() != read.ShortTag() || written.Value != read.Value ||
+		len(written.Content) != len(read.Content) {
+		return DeclineReencodingReadsOtherwise
+	}
+	for i, child := range written.Content {
+		if why := readsBackAsWritten(child, read.Content[i], depth+1); why != "" {
+			return why
+		}
+	}
+	return ""
 }
 
 // encodeStream writes docs to w as one YAML stream, a document each. A stream

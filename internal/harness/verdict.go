@@ -137,9 +137,13 @@ const (
 	DeclineTooManyDocuments Decline = "too many documents"
 	// DeclineUnencodable: the parsed source does not encode again.
 	DeclineUnencodable Decline = "does not re-encode"
-	// DeclinePermutationUnparsable: the permuted source does not parse again,
-	// which is the rewrite's own fault.
-	DeclinePermutationUnparsable Decline = "permutation does not parse"
+	// DeclineReencodingUnparsable: the source re-encoded, permuted or as
+	// written, does not parse again, which is the rewrite's own fault.
+	DeclineReencodingUnparsable Decline = "re-encoding does not parse"
+	// DeclineReencodingReadsOtherwise: the source re-encoded, permuted or as
+	// written, parses again to other nodes or values, so the oracle would
+	// compile another spec.
+	DeclineReencodingReadsOtherwise Decline = "re-encoding reads otherwise"
 	// DeclineNothingToPermute: the permutation changes nothing, so both orders
 	// are one: no mapping holds two entries, or no allOf or required sequence
 	// of two or more is the sequence-order oracle's to reverse.
