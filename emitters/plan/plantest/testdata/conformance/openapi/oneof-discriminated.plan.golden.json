@@ -13,8 +13,12 @@
     "type/openapi/components/schemas/Pet": {
       "discrim": {
         "mapping": {
-          "cat": "type/openapi/components/schemas/Cat",
-          "dog": "type/openapi/components/schemas/Dog"
+          "cat": [
+            "type/openapi/components/schemas/Cat"
+          ],
+          "dog": [
+            "type/openapi/components/schemas/Dog"
+          ]
         },
         "locator": "property_name",
         "wireKey": "petType"

@@ -202,13 +202,14 @@ The designs this was weighed against:
 
 ## A value no variant recognizes
 
-All four wire shapes decode in one order: the variant the tag or the key names, or the one
-recognition finds; then, on a discriminated union, for a tag that names none or no tag at all, the
-one recognition finds among the variants no tag routes to
-([below](#the-tag-a-variants-value-carries)); then `Discriminator.Default`; then, on an `Open` union
-([plan policy](../plan/policy.md)), the fallback; and otherwise a coded decode error. A tag that
-names a variant whose body fails to decode is an error either way: the variant is known, and the
-value does not match it. The fallback is one more variant, `Unknown`, holding the value as the
+All four wire shapes decode in one order: the variant the tag or the key names, the one recognition
+finds among those a tag names where it names several, or the one recognition finds; then, on a
+discriminated union, for a tag that names none or no tag at all, the one recognition finds among the
+variants no tag routes to ([below](#the-tag-a-variants-value-carries)); then
+`Discriminator.Default`; then, on an `Open` union ([plan policy](../plan/policy.md)), the fallback;
+and otherwise a coded decode error. A tag that names a variant whose body fails to decode is an
+error either way: the variant is known, and the value does not match it, as is one naming several
+that none of them admits. The fallback is one more variant, `Unknown`, holding the value as the
 target's untyped JSON value ([Go](../targets/go/unions.md#the-fallback),
 [Kotlin](../targets/kotlin/unions.md#the-fallback)). It re-encodes as the same JSON value, its
 members in order and each number's text intact. It has no factory, since only a response produces
@@ -241,12 +242,13 @@ that member as 10016. T-56 holds it.
 
 A value of a variant has to decode as that variant, so the tag it carries is one the discriminator
 routes there. A tag routes to a variant where `Discrim.Mapping` names the variant under it, compared
-as [above](#discriminators). The plan writes a union's routes out: the entries of the IR's
-`Mapping`, or, where the IR leaves it nil, each variant under the source name of its type, the name
-OpenAPI's implicit mapping routes by, which an anonymous variant lacks
-([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry holds, beside the
-routes declared or inferred, the one the source implies to each variant they leave out, so a variant
-it leaves out has none.
+as [above](#discriminators), and may name several, as it does two subtypes carrying one value
+([discriminator](../../ir/models.md#discriminator)); each of them owns it. The plan writes a union's
+routes out: the entries of the IR's `Mapping`, or, where the IR leaves it nil, each variant under
+the source name of its type, the name OpenAPI's implicit mapping routes by, which an anonymous
+variant lacks ([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry
+holds, beside the routes declared or inferred, the one the source implies to each variant they leave
+out, so a variant it leaves out has none.
 
 A variant's own tags are the tags routing to it that its tag member admits: every declaration of the
 member in the variant's flattening, the one it takes and those it overrides, admits the value of the

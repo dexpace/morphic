@@ -23,7 +23,7 @@ type TypePlan struct {
                                     // for one adding nothing to its union, and where no
                                     // distribution serves (below)
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
-    Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
+    Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as type IDs
     Open       bool                 // a union, polymorphic base, model narrowing a union or enum
                                     // keeps a value no variant or member recognizes rather than
                                     // refusing it (policy.md, ../refine/unions.md,
@@ -72,9 +72,10 @@ type DiscrimFacts struct {                 // Mapping/Default resolved to TypeID
     Locator           DiscrimLocator       // property | property_name | index
     WireKey           string               // wire name of the tag property ("" when Locator == index)
     TupleElementIndex *int                 // positional tag element (Erlang tagged tuples); nil otherwise
-    Mapping           map[string]ir.TypeID // wire tag value → variant ID: every route, those a union's nil
-                                           // Mapping leaves to its variants' type names written out
-                                           // (../refine/unions.md#the-tag-a-variants-value-carries)
+    Mapping           map[string][]ir.TypeID // wire tag value → every type it routes to, in ID
+                                             // order, none twice: every route the IR gives, those a
+                                             // union's nil Mapping leaves to its variants' type names
+                                             // written out (../refine/unions.md#the-tag-a-variants-value-carries)
     Default           ir.TypeID            // variant for absent/unrecognized tag; "" = none
     Envelope          string               // "" = inline tag | "object" = {kind,value} wrapper
     EnvelopeValueName string               // wire name of the envelope value property (Envelope=="object")
@@ -116,13 +117,17 @@ those `irfacts` derives, through `Base` and `Implements` at any depth and never 
 ([discriminator](../../ir/models.md#discriminator)). `WireKey` is `PropertyName`, or the wire name
 of the flattened member one of whose declarations is `Property`.
 
-The IR may route one tag to two types, as two subtypes carrying one value do
-([discriminator](../../ir/models.md#discriminator)), and `Mapping` keys one type per tag. The plan
-leaves such a tag out of `Mapping` and reports a warning `emitters/plan/discriminator-shared-tag`
-naming the tag and its types, at the type holding the discriminator. A discriminator that does not
-set exactly one locator, or a union's set only by `Property`, routes nothing: `Discrim` is nil, and
-the plan reports an error `emitters/plan/discriminator-unlocated`. `EnvelopeValueName` is `"value"`
-where an `object` envelope names no value property, as the IR's default is.
+The IR may route one tag to several types, as two subtypes carrying one value do
+([discriminator](../../ir/models.md#discriminator)): `Kitten` composing `Cat`, which pins `petType`
+to `cat`, carries `cat` too. `Mapping` names each of them under the tag, and a decoder finds the one
+a value is among them by recognition ([a value no variant
+recognizes](../refine/unions.md#a-value-no-variant-recognizes)). A `Mapping` keying one type per
+tag, leaving a tag several carry out with a warning, was the design this replaces: it dropped the
+route the document declares, `cat: Cat`, and left `Cat` and `Kitten` each a tag nothing routes,
+which an encoder then writes, the failure the IR's reading names for declining. A discriminator that
+does not set exactly one locator, or a union's set only by `Property`, routes nothing: `Discrim` is
+nil, and the plan reports an error `emitters/plan/discriminator-unlocated`. `EnvelopeValueName` is
+`"value"` where an `object` envelope names no value property, as the IR's default is.
 
 ## A model narrowing a union
 

@@ -5,7 +5,6 @@ package plan_test
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -66,32 +65,32 @@ func TestBuild_RoutesAUnionsDiscriminator(t *testing.T) {
 				Mapping: map[string]ir.TypeID{"cat": "type/cat", "kitty": "type/cat", "dog": "type/dog"}},
 		}, &plan.DiscrimFacts{
 			Locator: plan.DiscrimPropertyName, WireKey: "kind", Default: "type/dog",
-			Mapping: map[string]ir.TypeID{"cat": "type/cat", "kitty": "type/cat", "dog": "type/dog"},
+			Mapping: map[string][]ir.TypeID{"cat": {"type/cat"}, "kitty": {"type/cat"}, "dog": {"type/dog"}},
 		}},
 		{"no mapping, over named variants", &ir.Union{
 			Variants:      variantsOf("type/cat", "type/dog"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind"},
 		}, &plan.DiscrimFacts{
 			Locator: plan.DiscrimPropertyName, WireKey: "kind",
-			Mapping: map[string]ir.TypeID{"Cat": "type/cat", "Dog": "type/dog"},
+			Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}, "Dog": {"type/dog"}},
 		}},
 		{"an empty mapping, which routes as none does", &ir.Union{
 			Variants:      variantsOf("type/cat"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{}},
 		}, &plan.DiscrimFacts{
-			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string]ir.TypeID{"Cat": "type/cat"},
+			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
 		{"no mapping, over an anonymous variant with a hint alone", &ir.Union{
 			Variants:      variantsOf("type/anonymous", "type/cat"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind"},
 		}, &plan.DiscrimFacts{
-			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string]ir.TypeID{"Cat": "type/cat"},
+			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
 		{"no mapping, over variants naming nothing, a missing type or no model", &ir.Union{
 			Variants:      variantsOf("", "type/missing", "type/nil", "type/dog"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind"},
 		}, &plan.DiscrimFacts{
-			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string]ir.TypeID{"Dog": "type/dog"},
+			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string][]ir.TypeID{"Dog": {"type/dog"}},
 		}},
 		{"no mapping, over anonymous variants alone", &ir.Union{
 			Variants:      variantsOf("type/anonymous"),
@@ -101,33 +100,33 @@ func TestBuild_RoutesAUnionsDiscriminator(t *testing.T) {
 			Variants:      variantsOf("type/cat", "type/cat"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind"},
 		}, &plan.DiscrimFacts{
-			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string]ir.TypeID{"Cat": "type/cat"},
+			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
 		{"a mapping leaving a variant out, which it routes nothing to", &ir.Union{
 			Variants:      variantsOf("type/cat", "type/dog"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"kitty": "type/cat"}},
 		}, &plan.DiscrimFacts{
-			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string]ir.TypeID{"kitty": "type/cat"},
+			Locator: plan.DiscrimPropertyName, WireKey: "kind", Mapping: map[string][]ir.TypeID{"kitty": {"type/cat"}},
 		}},
 		{"a tag at a tuple element", &ir.Union{
 			Variants:      variantsOf("type/cat"),
 			Discriminator: &ir.Discriminator{TupleElementIndex: &index},
 		}, &plan.DiscrimFacts{
-			Locator: plan.DiscrimIndex, TupleElementIndex: &index, Mapping: map[string]ir.TypeID{"Cat": "type/cat"},
+			Locator: plan.DiscrimIndex, TupleElementIndex: &index, Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
 		{"an object envelope naming no value property", &ir.Union{
 			Variants:      variantsOf("type/cat"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind", Envelope: "object"},
 		}, &plan.DiscrimFacts{
 			Locator: plan.DiscrimPropertyName, WireKey: "kind", Envelope: "object", EnvelopeValueName: "value",
-			Mapping: map[string]ir.TypeID{"Cat": "type/cat"},
+			Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
 		{"an object envelope naming its value property", &ir.Union{
 			Variants:      variantsOf("type/cat"),
 			Discriminator: &ir.Discriminator{PropertyName: "kind", Envelope: "object", EnvelopeValueName: "data"},
 		}, &plan.DiscrimFacts{
 			Locator: plan.DiscrimPropertyName, WireKey: "kind", Envelope: "object", EnvelopeValueName: "data",
-			Mapping: map[string]ir.TypeID{"Cat": "type/cat"},
+			Mapping: map[string][]ir.TypeID{"Cat": {"type/cat"}},
 		}},
 	}
 	for _, tt := range tests {
@@ -142,10 +141,6 @@ func TestBuild_RoutesAUnionsDiscriminator(t *testing.T) {
 			if tt.union.Discriminator.TupleElementIndex != nil {
 				assert.Same(t, tt.union.Discriminator.TupleElementIndex, got.TupleElementIndex,
 					"the plan points into the document")
-			}
-			if len(tt.union.Discriminator.Mapping) > 0 {
-				assert.Equal(t, fmt.Sprintf("%p", tt.union.Discriminator.Mapping), fmt.Sprintf("%p", got.Mapping),
-					"a mapping holding an entry is the IR's own")
 			}
 		})
 	}
@@ -200,9 +195,9 @@ func TestBuild_RoutesAHierarchysDiscriminator(t *testing.T) {
 	want := &plan.DiscrimFacts{
 		Locator: plan.DiscrimProperty,
 		WireKey: "pet_type",
-		Mapping: map[string]ir.TypeID{
-			"cat": "type/cat", "zulu": "type/whale", "alpha": "type/whale",
-			"Dog": "type/dog", "Puppy": "type/puppy", "Bird": "type/bird",
+		Mapping: map[string][]ir.TypeID{
+			"cat": {"type/cat"}, "zulu": {"type/whale"}, "alpha": {"type/whale"},
+			"Dog": {"type/dog"}, "Puppy": {"type/puppy"}, "Bird": {"type/bird"},
 		},
 	}
 	assert.Empty(t, cmp.Diff(want, built.Types["type/pet"].Discrim))
@@ -226,9 +221,9 @@ func TestBuild_RoutesEachBaseAboveASubtype(t *testing.T) {
 
 	built := build(t, doc, plan.Policy{})
 
-	assert.Equal(t, ir.TypeID("type/puppy"), built.Types["type/pet"].Discrim.Mapping["Puppy"])
+	assert.Equal(t, []ir.TypeID{"type/puppy"}, built.Types["type/pet"].Discrim.Mapping["Puppy"])
 	assert.Empty(t, cmp.Diff(&plan.DiscrimFacts{
-		Locator: plan.DiscrimPropertyName, WireKey: "breed", Mapping: map[string]ir.TypeID{"Puppy": "type/puppy"},
+		Locator: plan.DiscrimPropertyName, WireKey: "breed", Mapping: map[string][]ir.TypeID{"Puppy": {"type/puppy"}},
 	}, built.Types["type/dog"].Discrim))
 }
 
@@ -275,55 +270,49 @@ func holderProvenance() ir.Provenance {
 	return ir.Provenance{Source: 1, Pointer: "/components/schemas/Pet"}
 }
 
-// TestBuild_ReportsATagTwoTypesShare holds a tag the IR routes to two types:
-// the plan's Mapping keys one type per tag, so it routes the tag to neither
-// and reports it, at the holder (docs/emitters/plan/types.md#a-discriminators-routes).
-func TestBuild_ReportsATagTwoTypesShare(t *testing.T) {
+// TestBuild_RoutesATagToEveryTypeItNames holds a tag the IR routes to
+// several types, as a sub-subtype inheriting its parent's pinned tag does:
+// the plan routes it to each, in ID order and none twice, and reports nothing
+// (docs/emitters/plan/types.md#a-discriminators-routes).
+func TestBuild_RoutesATagToEveryTypeItNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		doc     func() *ir.Document
-		holder  ir.TypeID
-		want    map[string]ir.TypeID
-		message string
+		name   string
+		doc    func() *ir.Document
+		holder ir.TypeID
+		want   map[string][]ir.TypeID
 	}{
-		{"two variants whose types share a name", func() *ir.Document {
+		{"variants whose types share a name, one listed twice", func() *ir.Document {
 			doc := variantRegistry(&ir.Union{
-				Variants:      variantsOf("type/cat", "type/cat-twin", "type/dog"),
+				Variants:      variantsOf("type/cat-twin", "type/dog", "type/cat", "type/cat-twin"),
 				Discriminator: &ir.Discriminator{PropertyName: "kind"},
 			})
 			doc.Types["type/cat-twin"] = namedModel("type/cat-twin", "Cat")
 			return doc
-		}, "type/union", map[string]ir.TypeID{"Dog": "type/dog"}, `"Cat" to type/cat, type/cat-twin`},
+		}, "type/union", map[string][]ir.TypeID{"Cat": {"type/cat", "type/cat-twin"}, "Dog": {"type/dog"}}},
 		{"two subtypes carrying one value", func() *ir.Document {
 			doc := petHierarchy()
-			doc.Types["type/puppy"].(*ir.Model).DiscriminatorValue = "Dog"
+			doc.Types["type/dog"].(*ir.Model).DiscriminatorValue = "Puppy"
 			return doc
-		}, "type/pet", map[string]ir.TypeID{
-			"cat": "type/cat", "zulu": "type/whale", "alpha": "type/whale", "Bird": "type/bird",
-		}, `"Dog" to type/dog, type/puppy`},
-		{"a subtype's value keying an entry naming another type", func() *ir.Document {
+		}, "type/pet", map[string][]ir.TypeID{
+			"cat": {"type/cat"}, "zulu": {"type/whale"}, "alpha": {"type/whale"},
+			"Puppy": {"type/dog", "type/puppy"}, "Bird": {"type/bird"},
+		}},
+		{"a subtype's value keying an entry naming a type sorting after it", func() *ir.Document {
 			doc := petHierarchy()
 			doc.Types["type/dog"].(*ir.Model).DiscriminatorValue = "zulu"
 			return doc
-		}, "type/pet", map[string]ir.TypeID{
-			"cat": "type/cat", "alpha": "type/whale", "Puppy": "type/puppy", "Bird": "type/bird",
-		}, `"zulu" to type/dog, type/whale`},
+		}, "type/pet", map[string][]ir.TypeID{
+			"cat": {"type/cat"}, "zulu": {"type/dog", "type/whale"}, "alpha": {"type/whale"},
+			"Puppy": {"type/puppy"}, "Bird": {"type/bird"},
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			doc := tt.doc()
-			doc.Types[tt.holder].Common().Provenance = holderProvenance()
+			built := build(t, tt.doc(), plan.Policy{})
 
-			built, diags := plan.Build(doc, irfacts.New(doc), plan.Policy{})
-
-			require.Len(t, diags, 1)
-			assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-			assert.Equal(t, "emitters/plan/discriminator-shared-tag", diags[0].Code)
-			assert.Equal(t, holderProvenance(), diags[0].Provenance)
-			assert.Contains(t, diags[0].Message, string(tt.holder))
-			assert.Contains(t, diags[0].Message, tt.message)
+			require.NotNil(t, built.Types[tt.holder].Discrim)
 			assert.Empty(t, cmp.Diff(tt.want, built.Types[tt.holder].Discrim.Mapping))
 		})
 	}

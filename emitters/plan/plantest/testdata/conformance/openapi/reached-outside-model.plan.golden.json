@@ -19,7 +19,9 @@
     "type/openapi/components/schemas/Kennel": {
       "discrim": {
         "mapping": {
-          "cat": "type/anonymous/x-lib/Cat"
+          "cat": [
+            "type/anonymous/x-lib/Cat"
+          ]
         },
         "locator": "property",
         "wireKey": "kind"

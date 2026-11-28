@@ -24,8 +24,12 @@
     "type/openapi/components/schemas/Resource": {
       "discrim": {
         "mapping": {
-          "labelled": "type/openapi/components/schemas/Labelled",
-          "named": "type/openapi/components/schemas/Named"
+          "labelled": [
+            "type/openapi/components/schemas/Labelled"
+          ],
+          "named": [
+            "type/openapi/components/schemas/Named"
+          ]
         },
         "locator": "property_name",
         "wireKey": "kind"

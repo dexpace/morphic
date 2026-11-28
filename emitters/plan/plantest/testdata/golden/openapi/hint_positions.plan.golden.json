@@ -503,8 +503,12 @@
     "type/openapi/components/schemas/Kennel": {
       "discrim": {
         "mapping": {
-          "routed": "type/anonymous/components/schemas/Positions/properties/routed",
-          "routedBranch": "type/anonymous/components/schemas/Positions/properties/routedBranch"
+          "routed": [
+            "type/anonymous/components/schemas/Positions/properties/routed"
+          ],
+          "routedBranch": [
+            "type/anonymous/components/schemas/Positions/properties/routedBranch"
+          ]
         },
         "locator": "property",
         "wireKey": "kind"

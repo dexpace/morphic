@@ -5,7 +5,6 @@ package plan
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -13,14 +12,8 @@ import (
 	"github.com/dexpace/morphic/ir/irfacts"
 )
 
-// The plan's findings about a discriminator.
-const (
-	// codeSharedTag reports a tag the IR routes to two types, which
-	// [DiscrimFacts.Mapping], keying one type per tag, cannot hold.
-	codeSharedTag = "emitters/plan/discriminator-shared-tag"
-	// codeUnlocated reports a discriminator that no one locator places.
-	codeUnlocated = "emitters/plan/discriminator-unlocated"
-)
+// codeUnlocated reports a discriminator that no one locator places.
+const codeUnlocated = "emitters/plan/discriminator-unlocated"
 
 // The envelope a tag can sit in (ir.Discriminator.Envelope).
 const (
@@ -32,12 +25,14 @@ const (
 )
 
 // DiscrimFacts is a union's or a polymorphic base's discriminator with every
-// route written out as a type ID, never a name
+// route the IR gives it written out as type IDs, never a name
 // (docs/emitters/plan/types.md#a-discriminators-routes).
 type DiscrimFacts struct {
-	// Mapping maps each wire tag to the one type it routes to; empty = no
-	// tag routes. It is the IR's own where a union's holds an entry.
-	Mapping map[string]ir.TypeID `json:"mapping,omitempty"`
+	// Mapping maps each wire tag to every type it routes to, in ID order and
+	// none twice, a tag two types carry naming both; empty = no tag routes.
+	// It is the plan's own, never the IR's Mapping, whose entries name one
+	// type each.
+	Mapping map[string][]ir.TypeID `json:"mapping,omitempty"`
 	// TupleElementIndex is the IR's: the 0-based tuple element carrying the
 	// tag where Locator is DiscrimIndex, nil otherwise.
 	TupleElementIndex *int `json:"tupleElementIndex,omitzero"`
@@ -75,7 +70,8 @@ const (
 // unionDiscrim returns the discriminator facts of union, nil unless its
 // shape is discriminated: its routes are the entries of the IR's Mapping, or,
 // where that holds none, each variant under the source name of its type
-// (docs/emitters/refine/unions.md#the-tag-a-variants-value-carries).
+// (docs/emitters/refine/unions.md#the-tag-a-variants-value-carries), and
+// what it finds.
 func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.Diagnostic) {
 	if unionShape(union) != UnionDiscriminated {
 		return nil, nil
@@ -89,7 +85,7 @@ func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.D
 
 	built := newDiscrim(discriminator, locator)
 	if len(discriminator.Mapping) > 0 {
-		built.Mapping = discriminator.Mapping
+		built.Mapping = routesOf(discriminator.Mapping).sorted()
 		return built, nil
 	}
 	// A variant naming no declared type routes nothing, nor does one whose type
@@ -103,9 +99,8 @@ func unionDiscrim(types ir.TypeRegistry, union *ir.Union) (*DiscrimFacts, []ir.D
 		}
 		routes.add(td.Common().Name.Source, target)
 	}
-	var diags []ir.Diagnostic
-	built.Mapping, diags = routes.mapping(union)
-	return built, diags
+	built.Mapping = routes.sorted()
+	return built, nil
 }
 
 // hierarchyDiscrim returns the discriminator facts of model, whose flattening
@@ -129,10 +124,7 @@ func hierarchyDiscrim(
 	if locator == DiscrimProperty {
 		built.WireKey = wireKeyOf(flat, discriminator.Property)
 	}
-	routes := routeTable{}
-	for tag, target := range discriminator.Mapping {
-		routes.add(tag, target)
-	}
+	routes := routesOf(discriminator.Mapping)
 	for _, id := range facts.Subtypes(model.ID) {
 		subtype, isModel := types[id].(*ir.Model)
 		if !isModel || subtype == nil || subtype.DiscriminatorValue == "" {
@@ -140,9 +132,8 @@ func hierarchyDiscrim(
 		}
 		routes.add(subtype.DiscriminatorValue, id)
 	}
-	var diags []ir.Diagnostic
-	built.Mapping, diags = routes.mapping(model)
-	return built, diags
+	built.Mapping = routes.sorted()
+	return built, nil
 }
 
 // locators returns the locators discriminator sets, in the order the IR
@@ -207,51 +198,44 @@ func wireKeyOf(flat ir.Flattening, property ir.PropertyID) string {
 	return ""
 }
 
-// routeTable holds a discriminator's routes: each tag, and the distinct types
-// it routes to.
-type routeTable map[string]map[ir.TypeID]bool
+// routeTable holds a discriminator's routes: each tag, and the types it routes
+// to, in the order they were added.
+type routeTable map[string][]ir.TypeID
+
+// routesOf returns the routes of mapping, each tag to its one type. The slices
+// share one array, each capped at its one entry, so adding to a tag copies it
+// out rather than writing over the next.
+func routesOf(mapping map[string]ir.TypeID) routeTable {
+	routes := make(routeTable, len(mapping))
+	targets := make([]ir.TypeID, len(mapping))
+	i := 0
+	for tag, target := range mapping {
+		targets[i] = target
+		routes[tag] = targets[i : i+1 : i+1]
+		i++
+	}
+	return routes
+}
 
 // add routes tag to target.
 func (r routeTable) add(tag string, target ir.TypeID) {
-	if r[tag] == nil {
-		r[tag] = map[ir.TypeID]bool{}
-	}
-	r[tag][target] = true
+	r[tag] = append(r[tag], target)
 }
 
-// mapping returns the routes of r whose tag routes to one type, nil where no
-// tag does, and, in tag order, a warning about each tag routing to several,
-// which it leaves out. holder is the type holding the discriminator.
-func (r routeTable) mapping(holder ir.TypeDef) (map[string]ir.TypeID, []ir.Diagnostic) {
-	var routes map[string]ir.TypeID
-	var diags []ir.Diagnostic
-	for _, tag := range slices.Sorted(maps.Keys(r)) {
-		targets := slices.Sorted(maps.Keys(r[tag]))
+// sorted returns r with each tag's types in ID order and none twice, nil where
+// no tag routes. Only a tag routing to several is sorted, so a table whose
+// tags each route to one type is returned as it stands.
+func (r routeTable) sorted() map[string][]ir.TypeID {
+	if len(r) == 0 {
+		return nil
+	}
+	for tag, targets := range r {
 		if len(targets) > 1 {
-			diags = append(diags, sharedTag(holder, tag, targets))
-			continue
+			slices.Sort(targets)
+			r[tag] = slices.Compact(targets)
 		}
-		if routes == nil {
-			routes = map[string]ir.TypeID{}
-		}
-		routes[tag] = targets[0]
 	}
-	return routes, diags
-}
-
-// sharedTag reports that holder's discriminator routes tag to each of
-// targets: [DiscrimFacts.Mapping] keys one type per tag, so the plan routes
-// the tag to none of them (docs/emitters/plan/types.md#a-discriminators-routes).
-func sharedTag(holder ir.TypeDef, tag string, targets []ir.TypeID) ir.Diagnostic {
-	names := make([]string, len(targets))
-	for i, target := range targets {
-		names[i] = string(target)
-	}
-	common := holder.Common()
-	return ir.NewDiagnostic(ir.SeverityWarning, codeSharedTag,
-		fmt.Sprintf("the discriminator of %s routes the tag %q to %s, and a plan's mapping keys one type per tag, "+
-			"so the plan routes the tag to none of them", common.ID, tag, strings.Join(names, ", ")),
-		common.Provenance)
+	return r
 }
 
 // unlocated reports that holder's discriminator sets the locators in set:

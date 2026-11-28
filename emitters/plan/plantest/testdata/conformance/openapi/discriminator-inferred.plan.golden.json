@@ -131,10 +131,18 @@
     "type/openapi/components/schemas/Calculation": {
       "discrim": {
         "mapping": {
-          "COUNT": "type/anonymous/components/schemas/Calculation/oneOf/0",
-          "count": "type/anonymous/components/schemas/Calculation/oneOf/0",
-          "max": "type/anonymous/components/schemas/Calculation/oneOf/1",
-          "min": "type/anonymous/components/schemas/Calculation/oneOf/1"
+          "COUNT": [
+            "type/anonymous/components/schemas/Calculation/oneOf/0"
+          ],
+          "count": [
+            "type/anonymous/components/schemas/Calculation/oneOf/0"
+          ],
+          "max": [
+            "type/anonymous/components/schemas/Calculation/oneOf/1"
+          ],
+          "min": [
+            "type/anonymous/components/schemas/Calculation/oneOf/1"
+          ]
         },
         "locator": "property_name",
         "wireKey": "operator"
@@ -156,8 +164,12 @@
     "type/openapi/components/schemas/Format": {
       "discrim": {
         "mapping": {
-          "json": "type/openapi/components/schemas/JsonFormat",
-          "text": "type/openapi/components/schemas/TextFormat"
+          "json": [
+            "type/openapi/components/schemas/JsonFormat"
+          ],
+          "text": [
+            "type/openapi/components/schemas/TextFormat"
+          ]
         },
         "locator": "property_name",
         "wireKey": "type"
@@ -175,8 +187,12 @@
     "type/openapi/components/schemas/Named": {
       "discrim": {
         "mapping": {
-          "json": "type/openapi/components/schemas/json",
-          "text": "type/openapi/components/schemas/text"
+          "json": [
+            "type/openapi/components/schemas/json"
+          ],
+          "text": [
+            "type/openapi/components/schemas/text"
+          ]
         },
         "locator": "property_name",
         "wireKey": "type"
@@ -186,9 +202,15 @@
     "type/openapi/components/schemas/Operation": {
       "discrim": {
         "mapping": {
-          "completed": "type/anonymous/components/schemas/Operation/oneOf/1",
-          "pending": "type/anonymous/components/schemas/Operation/oneOf/0",
-          "running": "type/anonymous/components/schemas/Operation/oneOf/0"
+          "completed": [
+            "type/anonymous/components/schemas/Operation/oneOf/1"
+          ],
+          "pending": [
+            "type/anonymous/components/schemas/Operation/oneOf/0"
+          ],
+          "running": [
+            "type/anonymous/components/schemas/Operation/oneOf/0"
+          ]
         },
         "locator": "property_name",
         "wireKey": "status"
@@ -219,8 +241,12 @@
     "type/openapi/components/schemas/Shape": {
       "discrim": {
         "mapping": {
-          "circle": "type/openapi/components/schemas/Circle",
-          "square": "type/openapi/components/schemas/Square"
+          "circle": [
+            "type/openapi/components/schemas/Circle"
+          ],
+          "square": [
+            "type/openapi/components/schemas/Square"
+          ]
         },
         "locator": "property",
         "wireKey": "kind"
@@ -246,8 +272,12 @@
     "type/openapi/components/schemas/Styled": {
       "discrim": {
         "mapping": {
-          "json": "type/composed/components/schemas/Styled/oneOf/0",
-          "text": "type/composed/components/schemas/Styled/oneOf/1"
+          "json": [
+            "type/composed/components/schemas/Styled/oneOf/0"
+          ],
+          "text": [
+            "type/composed/components/schemas/Styled/oneOf/1"
+          ]
         },
         "locator": "property_name",
         "wireKey": "type"
@@ -265,8 +295,12 @@
     "type/openapi/components/schemas/Untagged": {
       "discrim": {
         "mapping": {
-          "json": "type/openapi/components/schemas/JsonFormat",
-          "text": "type/openapi/components/schemas/TextFormat"
+          "json": [
+            "type/openapi/components/schemas/JsonFormat"
+          ],
+          "text": [
+            "type/openapi/components/schemas/TextFormat"
+          ]
         },
         "locator": "property_name",
         "wireKey": "type"

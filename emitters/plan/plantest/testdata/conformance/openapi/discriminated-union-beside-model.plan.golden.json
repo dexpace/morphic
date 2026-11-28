@@ -11,7 +11,9 @@
     "type/openapi/components/schemas/Animal": {
       "discrim": {
         "mapping": {
-          "bird": "type/openapi/components/schemas/Bird"
+          "bird": [
+            "type/openapi/components/schemas/Bird"
+          ]
         },
         "locator": "property_name",
         "wireKey": "kind"
@@ -63,8 +65,12 @@
     "type/openapi/components/schemas/Pet": {
       "discrim": {
         "mapping": {
-          "Dog": "type/openapi/components/schemas/Dog",
-          "cat": "type/openapi/components/schemas/Cat"
+          "Dog": [
+            "type/openapi/components/schemas/Dog"
+          ],
+          "cat": [
+            "type/openapi/components/schemas/Cat"
+          ]
         },
         "locator": "property_name",
         "wireKey": "kind"
@@ -74,8 +80,12 @@
     "type/openapi/components/schemas/Shape": {
       "discrim": {
         "mapping": {
-          "Square": "type/openapi/components/schemas/Square",
-          "circle": "type/openapi/components/schemas/Circle"
+          "Square": [
+            "type/openapi/components/schemas/Square"
+          ],
+          "circle": [
+            "type/openapi/components/schemas/Circle"
+          ]
         },
         "locator": "property_name",
         "wireKey": "kind"

@@ -342,7 +342,9 @@
     "type/openapi/components/schemas/Pet": {
       "discrim": {
         "mapping": {
-          "Dog": "type/openapi/components/schemas/Dog"
+          "Dog": [
+            "type/openapi/components/schemas/Dog"
+          ]
         },
         "locator": "property",
         "wireKey": "kind"

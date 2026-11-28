@@ -30,8 +30,12 @@
     "type/openapi/components/schemas/Root": {
       "discrim": {
         "mapping": {
-          "Leaf": "type/openapi/components/schemas/Leaf",
-          "Mid": "type/openapi/components/schemas/Mid"
+          "Leaf": [
+            "type/openapi/components/schemas/Leaf"
+          ],
+          "Mid": [
+            "type/openapi/components/schemas/Mid"
+          ]
         },
         "locator": "property",
         "wireKey": "kind"

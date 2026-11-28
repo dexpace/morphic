@@ -63,8 +63,12 @@
     "type/openapi/components/schemas/Payment": {
       "discrim": {
         "mapping": {
-          "bank": "type/composed/components/schemas/Payment/oneOf/1",
-          "card": "type/composed/components/schemas/Payment/oneOf/0"
+          "bank": [
+            "type/composed/components/schemas/Payment/oneOf/1"
+          ],
+          "card": [
+            "type/composed/components/schemas/Payment/oneOf/0"
+          ]
         },
         "locator": "property_name",
         "wireKey": "method"
@@ -74,8 +78,12 @@
     "type/openapi/components/schemas/Refund": {
       "discrim": {
         "mapping": {
-          "Bank": "type/composed/components/schemas/Refund/oneOf/1",
-          "Card": "type/composed/components/schemas/Refund/oneOf/0"
+          "Bank": [
+            "type/composed/components/schemas/Refund/oneOf/1"
+          ],
+          "Card": [
+            "type/composed/components/schemas/Refund/oneOf/0"
+          ]
         },
         "locator": "property_name",
         "wireKey": "method"
