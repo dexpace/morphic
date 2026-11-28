@@ -3,6 +3,8 @@
 
 package ir
 
+import "slices"
+
 // OperationBindings holds the concrete-protocol mappings of an Operation's
 // neutral core (docs/ir/bindings.md). An operation has at least one binding;
 // more than one is legal (a Smithy service exposed over both HTTP and RPC; gRPC
@@ -23,6 +25,13 @@ type OperationBindings struct {
 	// OTP is the Erlang/OTP behaviour-operation binding
 	// (docs/ir/otp-binding.md).
 	OTP *OTPBinding `json:"otp,omitzero"`
+}
+
+// Inbound reports whether a binding of b marks its operation a request the
+// API sends: a webhook or a callback. It reads each binding's Inbound, not its
+// WebhookName, which an empty webhooks key leaves empty.
+func (b OperationBindings) Inbound() bool {
+	return slices.ContainsFunc(b.HTTP, func(binding HTTPBinding) bool { return binding.Inbound != "" })
 }
 
 // HTTPLocation is where an HTTP parameter binds on the wire

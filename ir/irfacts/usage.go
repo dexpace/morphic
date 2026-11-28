@@ -4,7 +4,6 @@
 package irfacts
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -127,7 +126,7 @@ func (r usageRoots) document(doc *ir.Document) {
 	}
 	callbacks := callbackOperations(doc)
 	ir.ForEachOperation(doc, func(operation ir.Operation) {
-		r.operation(doc, &operation, callbacks[operation.ID] || isInbound(&operation))
+		r.operation(doc, &operation, callbacks[operation.ID] || operation.Bindings.Inbound())
 	})
 	for i := range doc.Services {
 		for j := range doc.Services[i].CommonErrors {
@@ -156,13 +155,6 @@ func callbackOperations(doc *ir.Document) map[ir.OperationID]bool {
 		}
 	})
 	return callbacks
-}
-
-// isInbound reports whether a binding of operation marks it a request the API
-// sends: a webhook or a callback. Its WebhookName may be empty, since an empty
-// webhooks key is legal.
-func isInbound(operation *ir.Operation) bool {
-	return slices.ContainsFunc(operation.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
 // operation records what operation sends and what comes back. The client writes

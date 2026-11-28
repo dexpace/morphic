@@ -33,6 +33,36 @@ func TestOperationBindings_JSONContract(t *testing.T) {
 	})
 }
 
+// TestOperationBindings_Inbound holds Inbound to a request the API sends: any
+// HTTP binding marking one, not only the primary, whatever its kind and with
+// no webhook name, and no other binding.
+func TestOperationBindings_Inbound(t *testing.T) {
+	t.Parallel()
+	client := ir.HTTPBinding{Method: "POST", URITemplate: "/orders"}
+	tests := []struct {
+		name     string
+		bindings ir.OperationBindings
+		want     bool
+	}{
+		{"no-binding", ir.OperationBindings{}, false},
+		{"client", ir.OperationBindings{HTTP: []ir.HTTPBinding{client}}, false},
+		{"webhook", ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST", Inbound: ir.HTTPInboundWebhook, WebhookName: "order"}}}, true},
+		{"webhook-without-name", ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST", Inbound: ir.HTTPInboundWebhook}}}, true},
+		{"callback", ir.OperationBindings{HTTP: []ir.HTTPBinding{{Method: "POST", Inbound: ir.HTTPInboundCallback}}}, true},
+		{"inbound-after-client", ir.OperationBindings{HTTP: []ir.HTTPBinding{client, {Method: "POST", Inbound: ir.HTTPInboundCallback}}}, true},
+		{"message-and-rpc", ir.OperationBindings{
+			Message: &ir.MessageBinding{Channel: "c/x", Direction: ir.MessageDirectionReceive},
+			RPC:     &ir.RPCBinding{System: "grpc", FullMethod: "/pkg.Service/Method"},
+		}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.bindings.Inbound())
+		})
+	}
+}
+
 // TestHTTPBinding_JSONContract pins HTTPBinding's omitempty contract —
 // SharedRoute and ChecksumRequired are plain bools that must always serialize
 // as declared facts ("not shared", "no checksum required"), while every other
