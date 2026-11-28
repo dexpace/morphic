@@ -29,13 +29,15 @@ const (
 		"rather than transcribing it, and the CLI sets options as text"
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); the one that ships, " +
 		"const-unions, replaces and removes types and edits nothing else"
-	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
-	factAPI     = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
-	pathAPI     = "the path fold and segment rules docs/emitters/emit/rules.md states, which the checked " +
+	pathAPI = "the path fold and segment rules docs/emitters/emit/rules.md states, which the checked " +
 		"call (GitHub #2229), the project (GitHub #2242), naming (GitHub #2238, #2239) and the write plan " +
 		"(GitHub #2246) compare by"
 	manifestAPI = "the manifest docs/emitters/write-integrate.md records, which the write plan " +
 		"reads (GitHub #2246) and the writer writes (GitHub #2247)"
+	relationAPI  = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
+	factAPI      = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
+	typeTableAPI = "the type table every target decodes, merges and looks up (docs/emitters/contract/type-table.md), " +
+		"which the first target's types slice calls (GitHub #2141)"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -81,6 +83,12 @@ var apiRoots = map[string]string{
 	"emitters/manifest.DecodePending":      manifestAPI,
 	"emitters/manifest.EncodePending":      manifestAPI,
 	"emitters/manifest.Digest":             manifestAPI,
+	"emitters/typemap.Decode":              typeTableAPI,
+	"emitters/typemap.Merge":               typeTableAPI,
+	"emitters/typemap.Moved":               typeTableAPI,
+	"emitters/typemap.Missing":             typeTableAPI,
+	"emitters/typemap.Lookup":              typeTableAPI,
+	"emitters/typemap.LookupExternal":      typeTableAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

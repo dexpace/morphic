@@ -14,10 +14,11 @@ policy](../plan/policy.md#the-policy-is-data)). A configuration differs from ano
 and its versions, which are data, and never in how `Decode` reads a version, a default or a
 `null`. A runtime-policy layer, a hint layer and a user's type table state no version of their
 own, and `DecodeLayer` reads each by the same strict rules, over the defaults its caller hands it,
-refusing every `null` because a layer leaves out any member it does not set: a runtime-policy
-layer's are those of the version the project's configuration states, and a hint layer and a type
-table have none ([delivery](runtime-policy.md#delivery), [shaping hints](shaping-hints.md), [type
-table](type-table.md)).
+refusing every `null` it decodes because a layer leaves out any member it does not set: a
+runtime-policy layer's are those of the version the project's configuration states, and a hint
+layer and a type table have none ([delivery](runtime-policy.md#delivery), [shaping
+hints](shaping-hints.md), [type table](type-table.md)). It keeps a `null` inside a member held as
+raw JSON, as a hint's `Extra` members are, for whatever decodes that member.
 
 ```go
 package options
@@ -37,7 +38,8 @@ type Version[T any] struct {
 func Decode[T any](schema Schema[T], raw []byte, behindCode string) (value T, stated int, diagnostics []ir.Diagnostic, err error)
 
 // DecodeLayer reads raw, a JSON object stating no version, over a copy of defaults, by Decode's
-// rules but that it refuses every null.
+// rules but that it refuses every null it decodes. One inside a member held as raw JSON it keeps,
+// for what decodes that member.
 func DecodeLayer[T any](defaults T, raw []byte) (T, error)
 
 // Canonical returns value in the one form a configuration is digested in (below).
@@ -64,7 +66,9 @@ func Canonical[T any](value T) ([]byte, error)
   rule refuses, and the type table's, a runtime-policy layer's and a hint layer's each refuse every
   `null`, a type-table row's `dependency` and a hint's `remount` among them
   ([type table](type-table.md), [delivery](runtime-policy.md#delivery), [shaping
-  hints](shaping-hints.md)).
+  hints](shaping-hints.md)). A member held as raw JSON is refused where it is written `null`
+  itself; a `null` inside it is kept, since the codec decodes nothing there and the type of
+  whatever decodes the member decides.
 - **Defaults belong to a version.** A target declares each optional setting's default per version,
   and `Decode` fills what a configuration leaves unset with the defaults of the version it states:
   it decodes over a copy of that version's `Defaults`, a map merged key by key and a struct member

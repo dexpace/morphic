@@ -580,6 +580,14 @@ var rules = map[string][]string{
 	// nothing else until it holds entities, whose symbols it takes from
 	// emitters/symbol (docs/emitters/packages.md).
 	"emitters/manifest": {module + "/pathfold"},
+	// The strict reading every configuration shares
+	// (docs/emitters/contract/options.md). It reaches the standard library
+	// alone until the versioned Decode adds ir (GitHub #2242).
+	"emitters/options": {},
+	// The type table's shape and the rules every target holds a table to, and
+	// no target's rows. It knows no plan, since a refine helper resolves a
+	// reference to its key (docs/emitters/packages.md).
+	"emitters/typemap": {module + "/ir", module + "/emitters/options"},
 	// The orchestration. It reaches the compiler package to compose the default
 	// registry and nothing of any source format: what a spec looks like and what
 	// its options are called are answered through the contract, so no parser is
@@ -700,7 +708,7 @@ var exempt = map[string]string{
 
 // unbuilt names the rules entries whose package does not exist yet, each with
 // the reason it is ruled already: its directory is missing, or holds only the
-// packages that carry their own rules, as emitters holds emitters/manifest.
+// packages that carry their own rules, as emitters holds emitters/typemap.
 // Such a rule audits nothing, and so does a misspelt one, so
 // TestImportGraph_LayeringHolds skips only these, and
 // TestUnbuilt_NamesOnlyRulesWithNoFileToAudit fails on one whose package has
@@ -773,18 +781,18 @@ func audits(dir, base string) error {
 // TestAudits_TellsARulesPackageFromThePackagesBeneathIt pins what counts as
 // built: a rule with a Go file to audit. A directory that is missing, or holds
 // only tests and the packages that carry their own rules, as emitters holds
-// emitters/manifest, has none.
+// emitters/typemap, has none.
 func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 	t.Parallel()
-	require.Contains(t, rules, "emitters/manifest", "the planted tree needs a ruled package beneath emitters")
+	require.Contains(t, rules, "emitters/typemap", "the planted tree needs a ruled package beneath emitters")
 	base := filepath.Join(t.TempDir(), "emitters")
 
 	require.ErrorIs(t, audits("emitters", base), fs.ErrNotExist, "a missing directory")
 
-	writeImporter(t, filepath.Join(base, "manifest", "manifest.go"), "fmt")
+	writeImporter(t, filepath.Join(base, "typemap", "table.go"), "fmt")
 	writeImporter(t, filepath.Join(base, "contract_test.go"), "fmt")
 	require.ErrorIs(t, audits("emitters", base), fs.ErrNotExist, "tests, and a package with its own rule")
-	require.NoError(t, audits("emitters/manifest", filepath.Join(base, "manifest")))
+	require.NoError(t, audits("emitters/typemap", filepath.Join(base, "typemap")))
 
 	require.NotContains(t, rules, "emitters/stray", "the planted package must carry no rule")
 	writeImporter(t, filepath.Join(base, "stray", "stray.go"), "fmt")
@@ -794,12 +802,59 @@ func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 
 	writeImporter(t, filepath.Join(base, "contract.go"), "fmt")
 	require.NoError(t, audits("emitters", base), "a Go file of its own")
+}
 
-	regularFile := filepath.Join(t.TempDir(), "regular")
-	require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
-	beneathAFile := audits("emitters", filepath.Join(regularFile, "emitters"))
-	require.Error(t, beneathAFile, "a base beneath a regular file")
-	assert.NotErrorIs(t, beneathAFile, fs.ErrNotExist, "a walk error other than a missing file passes through")
+// TestAudits_ReturnsAnyOtherWalkErrorAsTheWalkGaveIt holds audits to its
+// promise for an error that is no missing file, at each place
+// filepath.WalkDir reports one: a base it cannot stat, as one beneath a
+// regular file, and a directory it cannot read, the base or one beneath it.
+// Each comes back as filepath.WalkDir gave it.
+func TestAudits_ReturnsAnyOtherWalkErrorAsTheWalkGaveIt(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		base func(t *testing.T) string
+	}{
+		{"a base beneath a regular file", func(t *testing.T) string {
+			regularFile := filepath.Join(t.TempDir(), "regular")
+			require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
+			return filepath.Join(regularFile, "emitters")
+		}},
+		{"a base it cannot read", func(t *testing.T) string {
+			base := filepath.Join(t.TempDir(), "emitters")
+			createUnreadableDirectory(t, base)
+			return base
+		}},
+		{"a directory beneath the base it cannot read", func(t *testing.T) string {
+			require.NotContains(t, rules, "emitters/stray", "the unreadable directory must carry no rule")
+			base := filepath.Join(t.TempDir(), "emitters")
+			createUnreadableDirectory(t, filepath.Join(base, "stray"))
+			return base
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base := tc.base(t)
+			walkErr := filepath.WalkDir(base, func(_ string, _ fs.DirEntry, err error) error { return err })
+			require.Error(t, walkErr)
+			require.NotErrorIs(t, walkErr, fs.ErrNotExist, "the walk fails other than on a missing file")
+			assert.Equal(t, walkErr, audits("emitters", base),
+				"a walk error other than a missing file comes back as the walk gave it")
+		})
+	}
+}
+
+// createUnreadableDirectory creates dir as a directory whose entries cannot be
+// read, restoring its mode when the test ends so its temporary directory can
+// be removed. It skips the test for root, who reads the directory anyway.
+func createUnreadableDirectory(t *testing.T, dir string) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permission checks, so the walk would read the directory")
+	}
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.Chmod(dir, 0))
+	t.Cleanup(func() { assert.NoError(t, os.Chmod(dir, 0o700)) })
 }
 
 // unbuiltSkip decides a ruled directory from auditErr, what audits answered

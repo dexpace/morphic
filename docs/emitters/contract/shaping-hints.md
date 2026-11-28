@@ -41,7 +41,8 @@ hints imports no contract ([package layout](../packages.md)). A hint's JSON form
 in lower camel case, as runtime policy's does
 ([delivery](runtime-policy.md#delivery)): `rename`, `alsoMount`, `clientParams`. Like a
 runtime-policy layer, a hint layer is decoded strictly and refuses every `null`, `remount` among
-them: a layer leaves out any member it does not set.
+them: a layer leaves out any member it does not set. An `Extra` member written `null` is refused;
+a `null` inside one is kept for the target that decodes it ([target options](options.md)).
 
 `Extra` is a bare raw-JSON map rather than `ir.RawConfig`: `RawConfig` names *declared protocol
 configuration inside the IR* ([unmodeled](../../ir/unmodeled.md#rawconfig)), and a hint is neither —

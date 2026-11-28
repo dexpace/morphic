@@ -1617,7 +1617,8 @@ throughout these documents.
     and admits one at a pointer; it fills what a configuration leaves unset from its stated
     version's defaults, a map merged key by key, and at a version behind the current one reports
     each unset setting and each map entry whose default moved, under the code it is given, sorted
-    by path and alike on two runs. `options.DecodeLayer` refuses a `null` at a pointer too.
+    by path and alike on two runs. `options.DecodeLayer` refuses a `null` at a pointer too, and at a
+    member held as raw JSON, whose nested `null` it keeps.
     `options.Canonical` sorts members at every depth and keeps `9007199254740993` exact, and two
     options structs declaring their fields in two orders give one digest. `emitters.Configure`
     refuses as a breach each thing [the checked calls](../contract/emitter.md#the-checked-calls)
