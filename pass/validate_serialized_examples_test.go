@@ -532,7 +532,7 @@ func TestValidate_AStringIsTheTextOfLeavesAlone(t *testing.T) {
 	t.Parallel()
 	listJudged := []finding{{"parameter/x/q", "example 0 is a string, and type/i holds a list"}}
 	objectJudged := []finding{{"parameter/x/q", "example 0 is a string, and type/n holds an object"}}
-	unionT, innerT := ir.TypeRef{Target: "type/u"}, ir.TypeRef{Target: "type/v"}
+	unionT, innerT, wideT := ir.TypeRef{Target: "type/u"}, ir.TypeRef{Target: "type/v"}, ir.TypeRef{Target: "type/w"}
 	itemsOf := func(element ir.TypeRef, types ...ir.TypeDef) *ir.Document {
 		return holding(itemOperation(element, text("a,b")), types...)
 	}
@@ -574,6 +574,9 @@ func TestValidate_AStringIsTheTextOfLeavesAlone(t *testing.T) {
 		{"a list of a union that is its own variant", itemsOf(unionT, unionOf("type/u", unionT)), listJudged},
 		{"a list of a union of as many leaves as are read", itemsOf(unionT, unionOf("type/u", repeated(stringT, pass.MaxLeafReads-1)...)), nil},
 		{"a list of a union of more leaves than are read", itemsOf(unionT, unionOf("type/u", repeated(stringT, pass.MaxLeafReads)...)),
+			listJudged},
+		{"a list of a union of two unions of more leaves than are read", itemsOf(unionT, unionOf("type/u", innerT, wideT),
+			unionOf("type/v", repeated(stringT, pass.MaxLeafReads/2-1)...), unionOf("type/w", repeated(stringT, pass.MaxLeafReads/2-1)...)),
 			listJudged},
 		{"a tuple of leaves", tupleOf(nil, stringT, intT), nil},
 		{"a tuple holding a model", tupleOf(nil, stringT, objectT), listJudged},
