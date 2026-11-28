@@ -88,13 +88,13 @@ type subtypeAt struct {
 // type IDs in sorted order.
 func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 	bases := &nearestBases{nearest: map[ir.TypeID]ir.TypeID{}}
-	below := map[ir.TypeID][]subtypeAt{}
+	subtypes := map[ir.TypeID][]subtypeAt{}
 	var level []ir.TypeID
 	for _, id := range ids {
 		bases.steps++
 		for position, super := range ir.Supertypes(doc, id) {
 			bases.steps++
-			below[super] = append(below[super], subtypeAt{id: id, position: position})
+			subtypes[super] = append(subtypes[super], subtypeAt{id: id, position: position})
 		}
 		if holdsDiscriminator(doc.Types, id) {
 			level = append(level, id)
@@ -103,7 +103,7 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 	// A model enters a level once: the first if it holds a discriminator, or
 	// the one after it is settled if it holds none. So the levels end.
 	for len(level) > 0 {
-		level = bases.descend(doc.Types, below, level)
+		level = bases.descend(doc.Types, subtypes, level)
 	}
 	return bases
 }
@@ -112,7 +112,7 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 // settled, and returns the next level: those of them holding no
 // discriminator. Each takes the base through the supertype it names first,
 // that supertype itself where it holds a discriminator.
-func (b *nearestBases) descend(types ir.TypeRegistry, below map[ir.TypeID][]subtypeAt, level []ir.TypeID) []ir.TypeID {
+func (b *nearestBases) descend(types ir.TypeRegistry, subtypes map[ir.TypeID][]subtypeAt, level []ir.TypeID) []ir.TypeID {
 	type candidate struct {
 		base     ir.TypeID
 		position int
@@ -123,7 +123,7 @@ func (b *nearestBases) descend(types ir.TypeRegistry, below map[ir.TypeID][]subt
 		if !holdsDiscriminator(types, super) {
 			base = b.nearest[super]
 		}
-		for _, subtype := range below[super] {
+		for _, subtype := range subtypes[super] {
 			b.steps++
 			if _, settled := b.nearest[subtype.id]; settled {
 				continue

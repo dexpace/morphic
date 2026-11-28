@@ -21,9 +21,9 @@ import (
 func hierarchyOf(n int, every bool) *ir.Document {
 	doc := &ir.Document{Types: ir.TypeRegistry{}}
 	for i := range n {
-		model := &ir.Model{ID: rung(i), DiscriminatorValue: fmt.Sprint(i)}
+		model := &ir.Model{ID: chainModelID(i), DiscriminatorValue: fmt.Sprint(i)}
 		if i > 0 {
-			model.Base = &ir.TypeRef{Target: rung(i - 1)}
+			model.Base = &ir.TypeRef{Target: chainModelID(i - 1)}
 		}
 		if i == 0 || every {
 			model.Discriminator = &ir.Discriminator{PropertyName: "kind"}
@@ -33,8 +33,8 @@ func hierarchyOf(n int, every bool) *ir.Document {
 	return doc
 }
 
-// rung names the i-th model of a chain.
-func rung(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("type/rung-%d", i)) }
+// chainModelID returns the ID of the i-th model of a chain.
+func chainModelID(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("type/chain-%d", i)) }
 
 // TestNearestBases_CostGrowsWithTheRegistry counts the models, edges and
 // subtype reads the descent makes over a chain of n models, at n, 2n and 4n,
@@ -52,11 +52,11 @@ func TestNearestBases_CostGrowsWithTheRegistry(t *testing.T) {
 				doc := hierarchyOf(size, every)
 				bases := newNearestBases(doc, slices.Sorted(maps.Keys(doc.Types)))
 				require.Len(t, bases.nearest, size-1, "every model but the first has a nearest base")
-				want := rung(0)
+				want := chainModelID(0)
 				if every {
-					want = rung(size - 2)
+					want = chainModelID(size - 2)
 				}
-				require.Equal(t, want, bases.nearest[rung(size-1)])
+				require.Equal(t, want, bases.nearest[chainModelID(size-1)])
 				require.Equal(t, 3*size-2, bases.steps,
 					"each model, each supertype edge and each subtype read once")
 				return bases.steps

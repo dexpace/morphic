@@ -32,10 +32,10 @@ func variantsOf(ids ...ir.TypeID) []ir.Variant {
 	return variants
 }
 
-// variantRegistry builds a document holding the union type/union, over the
+// variantDocument builds a document holding the union type/union, over the
 // variants a case names, beside the types those variants can reference: two
 // named models, an anonymous one, and an entry holding no model.
-func variantRegistry(union *ir.Union) *ir.Document {
+func variantDocument(union *ir.Union) *ir.Document {
 	anonymous := irtest.ModelOf("type/anonymous", func(m *ir.Model) {
 		m.Anonymous = true
 		m.Name = ir.Naming{Hint: "inline_pet"}
@@ -133,7 +133,7 @@ func TestBuild_RoutesAUnionsDiscriminator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			doc := variantRegistry(tt.union)
+			doc := variantDocument(tt.union)
 
 			got := build(t, doc, plan.Policy{}).Types["type/union"].Discrim
 
@@ -209,9 +209,9 @@ func TestBuild_RoutesAHierarchysDiscriminator(t *testing.T) {
 	}
 }
 
-// below builds the model id, carrying the DiscriminatorValue value, its Base
+// subtypeModel builds the model id, carrying the DiscriminatorValue value, its Base
 // base and each of implements among its Implements.
-func below(id ir.TypeID, value string, base ir.TypeID, implements ...ir.TypeID) *ir.Model {
+func subtypeModel(id ir.TypeID, value string, base ir.TypeID, implements ...ir.TypeID) *ir.Model {
 	return irtest.ModelOf(id, func(m *ir.Model) {
 		m.DiscriminatorValue = value
 		if base != "" {
@@ -273,27 +273,27 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 		}},
 		{"two bases one hop up, the Base sorting after the other", func() *ir.Document {
 			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
-				below("type/leaf", "Leaf", "type/b", "type/a"))
+				subtypeModel("type/leaf", "Leaf", "type/b", "type/a"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/b": {"Leaf": {"type/leaf"}}}},
 		{"two bases one hop up, the Base sorting first", func() *ir.Document {
 			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
-				below("type/leaf", "Leaf", "type/a", "type/b"))
+				subtypeModel("type/leaf", "Leaf", "type/a", "type/b"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"Leaf": {"type/leaf"}}, "type/b": nil}},
 		{"two bases one hop up through Implements, the first", func() *ir.Document {
 			return irtest.DocOf(discriminated("type/a", "a"), discriminated("type/b", "b"),
-				below("type/leaf", "Leaf", "", "type/b", "type/a"))
+				subtypeModel("type/leaf", "Leaf", "", "type/b", "type/a"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/b": {"Leaf": {"type/leaf"}}}},
 		{"a nearer base through Implements than through the Base", func() *ir.Document {
-			return irtest.DocOf(discriminated("type/a", "a"), below("type/middle", "", "type/a"),
-				discriminated("type/b", "b"), below("type/leaf", "Leaf", "type/middle", "type/b"))
+			return irtest.DocOf(discriminated("type/a", "a"), subtypeModel("type/middle", "", "type/a"),
+				discriminated("type/b", "b"), subtypeModel("type/leaf", "Leaf", "type/middle", "type/b"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/b": {"Leaf": {"type/leaf"}}}},
 		{"a cycle of bases below a base", func() *ir.Document {
 			return irtest.DocOf(discriminated("type/x", "x"),
-				below("type/y", "Y", "type/z", "type/x"), below("type/z", "Z", "type/y"))
+				subtypeModel("type/y", "Y", "type/z", "type/x"), subtypeModel("type/z", "Z", "type/y"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/x": {"Y": {"type/y"}, "Z": {"type/z"}}}},
 		{"a base named through an alias", func() *ir.Document {
 			alias := &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/a"}}
-			return irtest.DocOf(discriminated("type/a", "a"), alias, below("type/leaf", "Leaf", "type/alias"))
+			return irtest.DocOf(discriminated("type/a", "a"), alias, subtypeModel("type/leaf", "Leaf", "type/alias"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"Leaf": {"type/leaf"}}}},
 	}
 	for _, tt := range tests {
@@ -370,7 +370,7 @@ func TestBuild_RoutesATagToEveryTypeItNames(t *testing.T) {
 		want   map[string][]ir.TypeID
 	}{
 		{"variants whose types share a name, one listed twice", func() *ir.Document {
-			doc := variantRegistry(&ir.Union{
+			doc := variantDocument(&ir.Union{
 				Variants:      variantsOf("type/cat-twin", "type/dog", "type/cat", "type/cat-twin"),
 				Discriminator: &ir.Discriminator{PropertyName: "kind"},
 			})
