@@ -1638,7 +1638,7 @@ throughout these documents.
     each target AST has a type that is data: a basic type, an IR stable ID, `ir.Provenance`, a
     struct or a pointer to one, a slice, array or map of data, or one of the AST's own sum
     interfaces; a planted `func` field, a `chan`, an `any` and a pointer to an `ir` entity each fail
-    it, and a walk of each golden's AST from its root reaches no node twice ([the target
+    it, and a walk of the AST each golden is printed from reaches no node twice ([the target
     AST](../refine/target-ast.md#every-node-is-data)).
 79. **T-79 · The printer reads the AST alone** — each target's printer entry point takes the AST
     and returns what it prints, and the printer's package, apart from the runtime templates', is

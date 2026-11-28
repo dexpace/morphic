@@ -227,9 +227,11 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 A target's output may one day be printed outside Morphic. A package on another platform, a Python
 one templating with Jinja2 for instance, would read a target's AST from a JSON artifact and let its
 users change that AST, or the text, before it is written. This is a documented extension point, not
-scheduled work, and no milestone depends on it. What it adds lands with the first such renderer:
-the AST's codec, a published schema and a version for it, as `IRVersion` is the IR's; the hooks,
-and a check of an AST a hook changed; and the way rendered files return to the writer.
+scheduled work, and no milestone depends on it. It reaches a target that prints a typed AST, as
+every target does unless it opts into templates for structure ([printing](emit/printing.md)). What
+it adds lands with the first such renderer: the AST's codec, a published schema and a version for
+it, as `IRVersion` is the IR's; the hooks, and a check of an AST a hook changed; and the way
+rendered files return to the writer.
 
 The cut is the target AST, not the IR or the plan. By then names are cased, types mapped, collisions
 resolved and every declaration placed, so a template reading the AST only prints. A renderer reading
