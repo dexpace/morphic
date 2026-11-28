@@ -248,10 +248,9 @@ func TestCanonicalWords_AllocatesOnlyItsResult(t *testing.T) {
 func TestSourceWords_KeepsEachWordAsWritten(t *testing.T) {
 	t.Parallel()
 	rows := []struct {
-		name           string
-		input          string
-		want           []string
-		wantFirstRunes int
+		name  string
+		input string
+		want  []string
 	}{
 		{name: "iOSVersion", input: "iOSVersion", want: []string{"i", "OS", "Version"}},
 		{name: "HTTPServer2FA", input: "HTTPServer2FA", want: []string{"HTTP", "Server", "2", "FA"}},
@@ -261,7 +260,7 @@ func TestSourceWords_KeepsEachWordAsWritten(t *testing.T) {
 		{name: "single acronym", input: "ID", want: []string{"ID"}},
 		{name: "no word runes", input: ">=", want: nil},
 		{name: "empty", input: "", want: nil},
-		{name: "decomposed combining mark", input: "cafe\u0301", want: []string{"cafe\u0301"}, wantFirstRunes: 5},
+		{name: "decomposed combining mark", input: "cafe\u0301", want: []string{"cafe\u0301"}},
 		{name: "invalid UTF-8 byte separates", input: "a\xffb", want: []string{"a", "b"}},
 	}
 	for _, row := range rows {
@@ -269,10 +268,6 @@ func TestSourceWords_KeepsEachWordAsWritten(t *testing.T) {
 			t.Parallel()
 			got := slices.Collect(ir.SourceWords(row.input))
 			assert.Equal(t, row.want, got, "SourceWords(%q)", row.input)
-			if row.wantFirstRunes > 0 {
-				require.NotEmpty(t, got)
-				assert.Equal(t, row.wantFirstRunes, utf8.RuneCountInString(got[0]))
-			}
 		})
 	}
 }
