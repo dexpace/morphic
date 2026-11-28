@@ -468,6 +468,7 @@ func TestBuild_ReportsADiscriminatorNoLocatorPlaces(t *testing.T) {
 			built, diags := plan.Build(doc, irfacts.New(doc), plan.Policy{})
 
 			require.Len(t, diags, 1)
+			require.NotNil(t, built, "an unlocated discriminator still leaves a plan")
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 			assert.Equal(t, "emitters/plan/discriminator-unlocated", diags[0].Code)
 			assert.Equal(t, holderProvenance(), diags[0].Provenance)
@@ -492,6 +493,7 @@ func TestBuild_TakesAnUnlocatedHolderAsTheNearest(t *testing.T) {
 	built, diags := plan.Build(doc, irfacts.New(doc), plan.Policy{})
 
 	require.Len(t, diags, 1)
+	require.NotNil(t, built, "an unlocated discriminator still leaves a plan")
 	assert.Equal(t, "emitters/plan/discriminator-unlocated", diags[0].Code)
 	assert.Equal(t, holderProvenance(), diags[0].Provenance)
 	assert.Nil(t, built.Types["type/dog"].Discrim)
