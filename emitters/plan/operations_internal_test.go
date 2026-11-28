@@ -23,8 +23,8 @@ func nestedOperation(id ir.OperationID, depth int) ir.OperationGroup {
 	return chain
 }
 
-// tierScans returns the groups the tier scans of one walk read over doc.
-func tierScans(t *testing.T, doc *ir.Document) int {
+// groupsRead returns the groups the tier scans of one walk read over doc.
+func groupsRead(t *testing.T, doc *ir.Document) int {
 	t.Helper()
 	walk := operationWalk{}
 	require.False(t, ir.ForEachOperationAt(doc, walk.plan), "the walk reads the whole document")
@@ -40,20 +40,20 @@ func tierScans(t *testing.T, doc *ir.Document) int {
 func TestOperationWalk_CostGrowsWithTheOperations(t *testing.T) {
 	t.Parallel()
 	const n, depth = 200, 8
-	scans := func(size int) int {
+	groupsReadAt := func(size int) int {
 		groups := make([]ir.OperationGroup, 0, size)
 		for i := range size {
 			groups = append(groups, nestedOperation(ir.OperationID(fmt.Sprintf("operation/%d", i)), depth))
 		}
-		return tierScans(t, &ir.Document{Services: []ir.Service{{Groups: groups}}})
+		return groupsRead(t, &ir.Document{Services: []ir.Service{{Groups: groups}}})
 	}
-	small, double, large := scans(n), scans(2*n), scans(4*n)
+	small, double, large := groupsReadAt(n), groupsReadAt(2*n), groupsReadAt(4*n)
 
 	require.Positive(t, double-small, "the scans read more groups over more operations")
 	assert.LessOrEqual(t, float64(large-double), 2.5*float64(double-small),
 		"%d, %d and %d groups read at %d, %d and %d operations", small, double, large, n, 2*n, 4*n)
 
 	deepest := nestedOperation("operation/deepest", ir.MaxGroupDepth+1)
-	read := tierScans(t, &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deepest}}}})
-	assert.Equal(t, ir.MaxGroupDepth+1, read, "levels 0 to the cap, each read once")
+	deepestRead := groupsRead(t, &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deepest}}}})
+	assert.Equal(t, ir.MaxGroupDepth+1, deepestRead, "levels 0 to the cap, each read once")
 }

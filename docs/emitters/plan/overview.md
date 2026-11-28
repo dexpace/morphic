@@ -59,8 +59,9 @@ func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example
 func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in *ModelShape) (Example, bool)
 ```
 
-Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
-fragility, prior-art §1). A rename of anything an ID is not built from, such as an `operationId` or
+Every key naming a node is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3;
+the oagen fragility, prior-art §1) — and an `Inferred` map is keyed by the path of the field it
+marks. A rename of anything an ID is not built from, such as an `operationId` or
 a `title`, never orphans a plan entry: it is "same ID, new symbol", a lookup. A rename of what an ID
 is built from, a path or a component name, gives the entity a new ID, and only its [correlation
 key](../../ir/derived-facts.md#correlation-keys) carries it across the revision, where the key's
