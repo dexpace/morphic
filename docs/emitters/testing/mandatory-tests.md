@@ -1172,12 +1172,12 @@ throughout these documents.
     such member; and a variant no tag routes to decodes by recognition, before `Default`, in a union
     declaring a `Default` too, where a value no such variant admits decodes as `Default`, and
     refuses to encode a value carrying another variant's tag, as `Default`'s variant refuses one
-    such a variant admits. Every example the plan synthesizes for a variant, and every member
-    `plan.Shown` fills, one whose member's set lists another variant's tag first among them
-    included, carries one of that variant's own tags and decodes as the variant it was made from
-    unless a variant that tag also routes to admits it first in recognition order, and a declared
-    example whose tag routes to variants none of which admits it is `emitters/plan/example-refused`
-    ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
+    that another variant no tag routes to admits. Every example the plan synthesizes for a variant,
+    and every member `plan.Shown` fills, one whose member's set lists another variant's tag first
+    among them included, carries one of that variant's own tags and decodes as the variant it was
+    made from unless a variant that tag also routes to admits it first in recognition order, and a
+    declared example whose tag routes to variants none of which admits it is
+    `emitters/plan/example-refused` ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
 57. **T-57 · What a mock accepts** — the mock accepts every example the plan holds for a request,
     shown in the shape its operation sends, and refuses a body narrowing a discriminated union that
     every entry its tag routes to refuses, lacking a member the entry requires or breaking a

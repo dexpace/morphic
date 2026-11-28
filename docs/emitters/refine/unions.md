@@ -280,8 +280,8 @@ admits.
   compiler elects a subtype's `DiscriminatorValue`. A variant with none, as one no tag routes to is,
   whether or not `Default` names it, writes its value as held, and a value whose tag routes to
   another variant is a coded encode error, since decoding would hand it to that one, as is a value
-  of `Default`'s that a variant no tag routes to admits. So an encoded value decodes back to the
-  variant that wrote it, unless another variant decoding tries it against admits it first in
+  of `Default`'s that another variant no tag routes to admits. So an encoded value decodes back to
+  the variant that wrote it, unless another variant decoding tries it against admits it first in
   recognition order, those its tag routes to or, where it routes to none, those no tag routes to:
   `Kitten`, composing `Cat` and adding nothing, writes `cat`, which routes to both, and the two
   admit the same values, so a value of whichever of them recognition tries second decodes as the
