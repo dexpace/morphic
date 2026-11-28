@@ -1466,19 +1466,34 @@ func TestReverseMappings_APermutationThatReadsOtherwiseIsDeclined(t *testing.T) 
 	assert.Nil(t, got)
 }
 
-// TestEncodeFaithfully_DepthBound covers the bound of both walks
-// encodeFaithfully makes. A tree reaching the comparison has passed the
-// restyle's bound, so the comparison's is driven directly.
-func TestEncodeFaithfully_DepthBound(t *testing.T) {
-	t.Parallel()
-	deep := yamlMapping()
-	assert.Equal(t, DeclineTooDeep, restyleScalars(&deep, maxReverseDepth+1))
-	assert.Equal(t, DeclineTooDeep, readsBackAsWritten(&deep, &deep, maxReverseDepth+1))
-
+// nestedDocument is a document whose root holds a scalar under sequences
+// nested sequences deep, so the scalar sits at depth sequences+1.
+func nestedDocument(sequences int) *yaml.Node {
 	nested := &yaml.Node{Kind: yaml.ScalarNode, Value: "v"}
-	for range maxReverseDepth + 1 {
+	for range sequences {
 		nested = &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{nested}}
 	}
-	_, why := encodeFaithfully([]*yaml.Node{{Kind: yaml.DocumentNode, Content: []*yaml.Node{nested}}})
+	return &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{nested}}
+}
+
+// TestEncodeFaithfully_DepthBound holds both walks encodeFaithfully makes to
+// the bound, each counted from the document: a scalar at maxReverseDepth is
+// walked and one a level deeper declined. A tree past the bound is declined by
+// the restyle, so the seam fails the test if it is encoded at all; a tree
+// reaching the comparison has passed the restyle's bound, so the comparison
+// is driven directly.
+func TestEncodeFaithfully_DepthBound(t *testing.T) {
+	orig := encodeYAML
+	t.Cleanup(func() { encodeYAML = orig })
+	encodeYAML = func([]*yaml.Node) ([]byte, error) {
+		t.Error("a tree past the bound is encoded")
+		return nil, errors.New("encoded")
+	}
+
+	_, why := encodeFaithfully([]*yaml.Node{nestedDocument(maxReverseDepth)})
 	assert.Equal(t, DeclineTooDeep, why, "a tree past the bound is declined before it is encoded")
+	assert.Empty(t, restyleScalars(nestedDocument(maxReverseDepth-1), 0))
+
+	assert.Equal(t, DeclineTooDeep, readsBackAsWritten(nestedDocument(maxReverseDepth), nestedDocument(maxReverseDepth), 0))
+	assert.Empty(t, readsBackAsWritten(nestedDocument(maxReverseDepth-1), nestedDocument(maxReverseDepth-1), 0))
 }
