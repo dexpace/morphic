@@ -283,8 +283,9 @@ admits.
   variant no tag routes to admits. So an encoded value decodes back to the variant that wrote it,
   unless a variant its tag also routes to admits it first in recognition order: `Kitten`, composing
   `Cat` and adding nothing, writes `cat`, which routes to both, and the two admit the same values,
-  so a value of whichever of them recognition tries second decodes as the other. A factory takes the
-  variant's value and sets nothing.
+  so a value of whichever of them recognition tries second decodes as the other. Which it tries
+  first among a polymorphic base's variants no document says yet (GitHub #2316). A factory takes
+  the variant's value and sets nothing.
 - **Examples.** A value the plan synthesizes for a variant, and a member `plan.Shown` fills, takes
   the tag by the same rule ([one set of examples](../docs-and-mock.md#one-set-of-examples)), and a
   declared example is checked as decoding reads it, by the variants its tag routes to: held by the
