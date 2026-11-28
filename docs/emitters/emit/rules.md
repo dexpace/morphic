@@ -77,32 +77,33 @@ the tree the rule exists to prevent.
   Decomposing the whole name comes first because APFS joins a composed `é` with a decomposed one,
   and two marks in either order: decomposing each character alone, which reorders no marks, split
   the names of one file 1,293 times in the second, as it parts `q` with U+0323 and U+0307 from the
-  two reversed. The decomposition is the whole one: `norm.NFD` writes Unicode's stream-safe form,
-  ordering no mark across the U+034F it inserts after 30 in a row, while APFS orders a run of 31,
-  the longest it writes. So the fold decomposes a name `norm.NFD` cuts a character at a time and
-  orders each run of marks by combining class; over 29,462 names of 28 to 31 marks in a row behind a
-  starter, 1,000 seeded draws each beside itself with each two neighbouring marks swapped, which
-  APFS made 11,324 files, it parted none APFS made one file and joined none it kept apart, where
-  `norm.NFD` alone parted 164, each at 31. Upper-casing comes before folding because `cases.Fold`
-  alone, Unicode's canonical caseless match over these tables, split them 86 times in the first and
-  1,252 in the second, each Cherokee letter against its other case among them, as that function maps
-  each to the other; Go's own tables upper-case both alike first. A final NFD, as the canonical
-  caseless match ends with, changed no answer in either, so it is not taken, and a fold of ASCII
-  letters alone split them 14,694 and 55,123 times. `strings.EqualFold` parts `Straße` from
-  `Strasse` and a composed `é` from a decomposed one, which APFS makes one path (#1729). That the
-  fold joins every pair NTFS makes one path is an assumption, not a measurement: NTFS compares names
-  through an upper-case table each volume stores, which no run here read, and the same sweeps on an
-  NTFS volume would settle it. A file system that tells case apart joins fewer. Unicode's stability
-  policies keep the case folding and decomposition of a string of assigned characters across its
-  versions, so a toolchain moving Unicode refolds only a name holding a character the older one left
-  unassigned. So the fold reads the tables Morphic is built with, Go's `unicode` and those
-  `golang.org/x/text` picks for the Go release, where casing reads a named version's ([target
-  options](../contract/options.md)): each of the 149,249 characters the tables of Go 1.26.3 hold,
-  Unicode 15.0.0's, each assigned but private use, which folds to itself, the surrogates, which no
-  UTF-8 name holds, and NUL and `/`, which no file name holds, folds alike built with it and with Go
-  1.27.3, which holds Unicode 17.0.0, though `unicode.ToUpper` differs between them at 55 code
-  points, and a character the older left unassigned was no letter to the word grammar either, so a
-  name holding one changes its words with the release whatever the fold reads. T-52 holds it.
+  two reversed. Upper-casing comes before folding because `cases.Fold` alone, Unicode's canonical
+  caseless match over these tables, split them 86 times in the first and 1,252 in the second, each
+  Cherokee letter against its other case among them, as that function maps each to the other; Go's
+  own tables upper-case both alike first. A final NFD, as the canonical caseless match ends with,
+  changed no answer in either, so it is not taken, and a fold of ASCII letters alone split them
+  14,694 and 55,123 times. The decomposition is the whole one: `norm.NFD` writes Unicode's
+  stream-safe form, ordering no mark across the U+034F it inserts after 30 in a row, while APFS
+  orders a run of 31, the longest it writes. So the fold decomposes a name `norm.NFD` cuts a
+  character at a time and orders each run of marks by combining class; over a third sweep, 1,000
+  seeded draws of 28 to 31 marks in a row behind a starter, each beside itself with each two
+  neighbouring marks swapped, 29,462 names, which APFS made 11,324 files, it parted none APFS made
+  one file and joined none it kept apart, where `norm.NFD` alone parted 164, each at 31.
+  `strings.EqualFold` parts `Straße` from `Strasse` and a composed `é` from a decomposed one, which
+  APFS makes one path (#1729). That the fold joins every pair NTFS makes one path is an assumption,
+  not a measurement: NTFS compares names through an upper-case table each volume stores, which no
+  run here read, and the same sweeps on an NTFS volume would settle it. A file system that tells
+  case apart joins fewer. Unicode's stability policies keep the case folding and decomposition of a
+  string of assigned characters across its versions, so a toolchain moving Unicode refolds only a
+  name holding a character the older one left unassigned. So the fold reads the tables Morphic is
+  built with, Go's `unicode` and those `golang.org/x/text` picks for the Go release, where casing
+  reads a named version's ([target options](../contract/options.md)): each of the 149,249 characters
+  the tables of Go 1.26.3 hold, Unicode 15.0.0's, each assigned but private use, which folds to
+  itself, the surrogates, which no UTF-8 name holds, and NUL and `/`, which no file name holds,
+  folds alike built with it and with Go 1.27.3, which holds Unicode 17.0.0, though `unicode.ToUpper`
+  differs between them at 55 code points, and a character the older left unassigned was no letter to
+  the word grammar either, so a name holding one changes its words with the release whatever the
+  fold reads. T-52 holds it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
   directory among them, is one `pathfold.Portable` admits. It is not empty, is valid UTF-8, which
   APFS refuses a name without, and is at most 255 bytes, the least any file system takes: ext4
