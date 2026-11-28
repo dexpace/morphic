@@ -796,9 +796,12 @@ func TestAudits_TellsARulesPackageFromThePackagesBeneathIt(t *testing.T) {
 
 	regularFile := filepath.Join(t.TempDir(), "regular")
 	require.NoError(t, os.WriteFile(regularFile, nil, 0o600))
-	beneathAFile := audits("emitters", filepath.Join(regularFile, "emitters"))
-	require.Error(t, beneathAFile, "a base beneath a regular file")
-	assert.NotErrorIs(t, beneathAFile, fs.ErrNotExist, "a walk error other than a missing file passes through")
+	baseBeneathAFile := filepath.Join(regularFile, "emitters")
+	walkErr := filepath.WalkDir(baseBeneathAFile, func(_ string, _ fs.DirEntry, err error) error { return err })
+	require.Error(t, walkErr, "a base beneath a regular file")
+	require.NotErrorIs(t, walkErr, fs.ErrNotExist, "the walk fails other than on a missing file")
+	assert.Equal(t, walkErr, audits("emitters", baseBeneathAFile),
+		"a walk error other than a missing file comes back as the walk gave it")
 }
 
 // unbuiltSkip decides a ruled directory from auditErr, what audits answered
