@@ -90,6 +90,7 @@ func TestPortable_RefusesWhatSomeFileSystemRefuses(t *testing.T) {
 		{name: "31 marks after a Hangul syllable", segment: "\uac01" + strings.Repeat("\u0316", 31), wantPhrase: markRunPhrase},
 		{name: "31 marks counting one a composed sign holds", segment: "\u0385" + strings.Repeat("\u0316", 30), wantPhrase: markRunPhrase},
 		{name: "31 marks after a sign of class zero", segment: "\u00a8" + strings.Repeat("\u0316", 31), wantPhrase: markRunPhrase},
+		{name: "31 marks with no letter before them", segment: strings.Repeat("\u0301", 31), wantPhrase: markRunPhrase},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -140,6 +141,7 @@ func TestPortable_Admits(t *testing.T) {
 		{name: "30 marks after a Hangul syllable", segment: "\uac01" + strings.Repeat("\u0316", 30)},
 		{name: "30 marks counting one a composed sign holds", segment: "\u0385" + strings.Repeat("\u0316", 29)},
 		{name: "30 marks after a sign of class zero", segment: "\u00a8" + strings.Repeat("\u0316", 30)},
+		{name: "30 marks with no letter before them", segment: strings.Repeat("\u0301", 30)},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -147,4 +149,12 @@ func TestPortable_Admits(t *testing.T) {
 			assert.NoError(t, pathfold.Portable(row.segment))
 		})
 	}
+}
+
+// TestPortable_AllocatesNothingForAnASCIIName pins Portable's path for a name
+// holding no mark: counting its marks reads norm.NFD's decomposition, which
+// allocates nothing where it changes nothing. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestPortable_AllocatesNothingForAnASCIIName(t *testing.T) {
+	assert.Zero(t, testing.AllocsPerRun(10, func() { _ = pathfold.Portable("CreateUserRequestBody.kt") }))
 }

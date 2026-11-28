@@ -89,7 +89,7 @@ func combiningClass(character rune) uint8 {
 // decomposition, where a letter composed with a mark adds one.
 func longestMarkRun(name string) int {
 	longest, run := 0, 0
-	for _, character := range decomposeUncut(name) {
+	for _, character := range decompose(name) {
 		if combiningClass(character) == 0 {
 			run = 0
 			continue

@@ -83,6 +83,11 @@ func TestFold_KeepsApartWhatItMust(t *testing.T) {
 		{name: "spacing combining mark", first: "\u0928\u093e\u092e", second: "\u0928\u092e"},
 		{name: "format character", first: "x\u200dy", second: "xy"},
 		{
+			name:   "conjoining vowels with a U+034F among them",
+			first:  strings.Repeat("\u1161", 84),
+			second: strings.Repeat("\u1161", 30) + "\u034f" + strings.Repeat("\u1161", 54),
+		},
+		{
 			name:   "marks of one class swapped at 31 marks",
 			first:  "b" + strings.Repeat("\u0301", 29) + "\u0300\u0301",
 			second: "b" + strings.Repeat("\u0301", 29) + "\u0301\u0300",
@@ -197,20 +202,22 @@ func TestDecomposeUncut_KeepsMarksOfOneClassInTheirOrder(t *testing.T) {
 }
 
 // TestFold_HoldsNoFewerCharactersThanItsName holds the fold of every code
-// point, and of seeded strings with bytes that are not UTF-8 among them, to as
-// many characters as it folds at least, which bounds the bytes a spelling of a
+// point, and of seeded strings with bytes that are not UTF-8 among them, to at
+// least as many characters as it folds, which bounds the bytes a spelling of a
 // name can take.
 func TestFold_HoldsNoFewerCharactersThanItsName(t *testing.T) {
 	t.Parallel()
-	pool := make([]rune, 0, 4_000)
+	changedCodePoints := make([]rune, 0, 4_000)
 	for r := range rune(unicode.MaxRune + 1) {
 		if !utf8.ValidRune(r) {
 			continue
 		}
 		folded := pathfold.Fold(string(r))
-		require.GreaterOrEqual(t, utf8.RuneCountInString(folded), 1, "Fold(%+q) = %+q", string(r), folded)
+		if folded == "" {
+			t.Fatalf("Fold(%+q) holds no character", string(r))
+		}
 		if folded != string(r) {
-			pool = append(pool, r)
+			changedCodePoints = append(changedCodePoints, r)
 		}
 	}
 
@@ -224,13 +231,23 @@ func TestFold_HoldsNoFewerCharactersThanItsName(t *testing.T) {
 				builder.WriteByte(byte(0x80 + source.Uint64()%0x80))
 				continue
 			}
-			builder.WriteRune(pool[source.Uint64()%uint64(len(pool))])
+			builder.WriteRune(changedCodePoints[source.Uint64()%uint64(len(changedCodePoints))])
 		}
 		drawn := builder.String()
 		folded := pathfold.Fold(drawn)
 		require.GreaterOrEqual(t, utf8.RuneCountInString(folded), utf8.RuneCountInString(drawn),
 			"Fold(%+q) = %+q", drawn, folded)
 	}
+}
+
+// TestFold_AllocatesAtMostThreeTimesForAnASCIIName pins Fold's path for a name
+// norm.NFD cuts nothing in to the three allocations it makes there, so a
+// decomposition a character at a time, which allocates per character, fails
+// it. It is not run in parallel: AllocsPerRun measures the process.
+func TestFold_AllocatesAtMostThreeTimesForAnASCIIName(t *testing.T) {
+	const allocations = 3
+	assert.LessOrEqual(t, testing.AllocsPerRun(10, func() { _ = pathfold.Fold("CreateUserRequestBody.kt") }),
+		float64(allocations))
 }
 
 // TestFold_IsIdempotent holds Fold(Fold(r)) == Fold(r) for every valid Unicode
