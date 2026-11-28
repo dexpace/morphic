@@ -130,13 +130,9 @@ for each subtype, so the nearest is the plan's reading, the one the OpenAPI comp
 inferred tag against. Where a second discriminator above the subtype routes it too, the plan gives
 that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
 every schema building on a parent, or a nearer one where a farther `Mapping` keys the value
-(GitHub #2313). Through a cycle of bases a farther holder gets no route either: where `A`,
-holding a discriminator, has the `Base` `B`, whose `Base` is `A` and which implements a
-discriminated `F`, `A` is `B`'s nearest and never its own, so no discriminator routes `A`'s value,
-though `F` is its nearest by the rule the compiler reads ancestors with. Routing the value from
-every base above it, the design this replaces, gave `Pet` the route `petType: lab` that neither
-the document nor the IR states, which an encoder writing a `Labrador` through `Pet` would have
-sent.
+(GitHub #2313). Routing the value from every base above it, the design this replaces, gave `Pet` the
+route `petType: lab` that neither the document nor the IR states, which an encoder writing a
+`Labrador` through `Pet` would have sent.
 
 The IR may route one tag to several types, as two subtypes carrying one value do
 ([discriminator](../../ir/models.md#discriminator)): `Kitten` composing `Cat`, which pins `petType`

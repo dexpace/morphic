@@ -309,6 +309,11 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 			unrelated := &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString}
 			return irtest.DocOf(base, subtypeModel("type/b", "", "type/a"), unrelated)
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil}},
+		{"a holder above a cycle of bases through the base", func() *ir.Document {
+			base := subtypeModel("type/a", "A", "type/b")
+			base.Discriminator = &ir.Discriminator{PropertyName: "a"}
+			return irtest.DocOf(base, subtypeModel("type/b", "", "type/a", "type/f"), discriminated("type/f", "f"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": nil, "type/f": {"A": {"type/a"}}}},
 		{"a chain discriminated at both ends, which takes every turn", func() *ir.Document {
 			last := subtypeModel("type/c", "C", "type/b")
 			last.Discriminator = &ir.Discriminator{PropertyName: "c"}

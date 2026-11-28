@@ -3,7 +3,11 @@
 
 package plan
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"slices"
+
+	"github.com/dexpace/morphic/ir"
+)
 
 // valueRoute is a route a subtype's DiscriminatorValue gives: the tag, and the
 // subtype carrying it.
@@ -70,10 +74,13 @@ func mappedRoutes(types ir.TypeRegistry) map[valueRoute]bool {
 // nearest of them but itself, level by level up ir.Supertypes, Base before
 // Implements: the one fewest hops away and, of those as near, the one reached
 // through the earlier supertype. It descends a level at a time from every
-// model holding a discriminator, so a cycle of bases ends and a model is
-// settled once.
+// model holding a discriminator, and each model keeps the two nearest holders
+// it reaches, so one reached back through a supertype taking it as that
+// supertype's own nearest takes the next.
 type nearestBases struct {
 	nearest map[ir.TypeID]ir.TypeID
+	// holders are the two nearest holders each model reaches, but itself.
+	holders map[ir.TypeID][]ir.TypeID
 	// steps counts the models, supertype edges and subtype reads the descent
 	// made, not the alias scalars ir.Supertypes reads a supertype through.
 	steps int
@@ -86,12 +93,21 @@ type subtypeAt struct {
 	position int
 }
 
+// reach is a holder a model reaches through models holding none, and its rank
+// among the holders the model keeps: 0 for its nearest, 1 for the next. A
+// holder reaches itself, at rank 0.
+type reach struct {
+	model  ir.TypeID
+	holder ir.TypeID
+	rank   int
+}
+
 // newNearestBases returns the nearest bases of the models ids names, doc's
 // type IDs in sorted order.
 func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
-	bases := &nearestBases{nearest: map[ir.TypeID]ir.TypeID{}}
+	bases := &nearestBases{nearest: map[ir.TypeID]ir.TypeID{}, holders: map[ir.TypeID][]ir.TypeID{}}
 	subtypes := map[ir.TypeID][]subtypeAt{}
-	var level []ir.TypeID
+	var level []reach
 	for _, id := range ids {
 		bases.steps++
 		for position, super := range ir.Supertypes(doc, id) {
@@ -99,59 +115,80 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 			subtypes[super] = append(subtypes[super], subtypeAt{id: id, position: position})
 		}
 		if holdsDiscriminator(doc.Types, id) {
-			level = append(level, id)
+			level = append(level, reach{model: id, holder: id})
 		}
 	}
-	// A model enters a level once: the first if it holds a discriminator, or
-	// the one after it is settled if it holds none. So no level is empty and
-	// none shares a model. Only a first level of one discriminated model,
-	// every other model entering a later one, fills as many levels as ids
-	// names, and the last of those could settle only that model, which is
-	// never its own base: so the loop is held to one turn fewer.
+	// A reach at a level is as many hops below its holder through distinct
+	// models that each keep it, so it is at most len(ids)-1 below. At that
+	// depth every type is such a model, keeping the holder and holding no
+	// discriminator, so the level gives no model a holder: the loop stops a
+	// turn short of it, and a chain only the first of whose models holds one
+	// takes every turn.
 	for turn := 0; len(level) > 0 && turn < len(ids)-1; turn++ {
 		level = bases.descend(doc.Types, subtypes, level)
+	}
+	for id, held := range bases.holders {
+		bases.nearest[id] = held[0]
 	}
 	return bases
 }
 
-// descend settles each model a supertype in level names that no nearer level
-// settled, and returns the next level: those of them holding no
-// discriminator. Each takes the base through the supertype it names first,
-// that supertype itself where it holds a discriminator, and never itself, as
-// the OpenAPI compiler reads no schema its own ancestor. So a holder in a
-// cycle of bases that the cycle's other models take as their nearest gets
-// none, though a holder above the cycle they compose is the compiler's
-// reading (GitHub #2313).
-func (b *nearestBases) descend(types ir.TypeRegistry, subtypes map[ir.TypeID][]subtypeAt, level []ir.TypeID) []ir.TypeID {
-	type candidate struct {
-		base     ir.TypeID
-		position int
-	}
-	reached := map[ir.TypeID]candidate{}
+// candidate is a holder a level reaches a model with, the position of the
+// supertype it comes through and its rank there.
+type candidate struct {
+	holder   ir.TypeID
+	position int
+	rank     int
+}
+
+// descend gives each model a supertype in level names the holders that level
+// reaches it with, nearest first, until it keeps two, and returns the next
+// level: each holder it kept, where it holds no discriminator itself.
+func (b *nearestBases) descend(types ir.TypeRegistry, subtypes map[ir.TypeID][]subtypeAt, level []reach) []reach {
+	reached := map[ir.TypeID][]candidate{}
 	for _, super := range level {
-		base := super
-		if !holdsDiscriminator(types, super) {
-			base = b.nearest[super]
-		}
-		for _, subtype := range subtypes[super] {
+		for _, subtype := range subtypes[super.model] {
 			b.steps++
-			if _, settled := b.nearest[subtype.id]; settled || subtype.id == base {
-				continue
-			}
-			if best, seen := reached[subtype.id]; seen && best.position <= subtype.position {
-				continue
-			}
-			reached[subtype.id] = candidate{base: base, position: subtype.position}
+			reached[subtype.id] = append(reached[subtype.id],
+				candidate{holder: super.holder, position: subtype.position, rank: super.rank})
 		}
 	}
-	var next []ir.TypeID
-	for id, best := range reached {
-		b.nearest[id] = best.base
-		if !holdsDiscriminator(types, id) {
-			next = append(next, id)
+	var next []reach
+	for id, candidates := range reached {
+		for _, rank := range b.keep(id, candidates) {
+			if !holdsDiscriminator(types, id) {
+				next = append(next, reach{model: id, holder: b.holders[id][rank], rank: rank})
+			}
 		}
 	}
 	return next
+}
+
+// keep adds to the holders id keeps the nearest of candidates it does not
+// keep yet, until it keeps two, and returns the ranks it added. Of one level's
+// candidates the nearest comes through the earlier supertype and, of those
+// through one, has the lower rank there. A model is never its own holder, as
+// the OpenAPI compiler reads no schema its own ancestor.
+func (b *nearestBases) keep(id ir.TypeID, candidates []candidate) []int {
+	var added []int
+	for len(b.holders[id]) < 2 {
+		best := -1
+		for i, found := range candidates {
+			if found.holder == id || slices.Contains(b.holders[id], found.holder) {
+				continue
+			}
+			if best < 0 || found.position < candidates[best].position ||
+				found.position == candidates[best].position && found.rank < candidates[best].rank {
+				best = i
+			}
+		}
+		if best < 0 {
+			break
+		}
+		added = append(added, len(b.holders[id]))
+		b.holders[id] = append(b.holders[id], candidates[best].holder)
+	}
+	return added
 }
 
 // holdsDiscriminator reports whether id names a model holding a
