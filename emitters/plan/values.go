@@ -102,8 +102,10 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 		}
 	}
 	// A model enters a level once: the first if it holds a discriminator, or
-	// the one after it is settled if it holds none. So the levels end.
-	for len(level) > 0 {
+	// the one after it is settled if it holds none. So no level is empty and
+	// none shares a model, and there are at most as many as ids names, the
+	// bound the loop holds them to.
+	for turn := 0; len(level) > 0 && turn < len(ids); turn++ {
 		level = bases.descend(doc.Types, subtypes, level)
 	}
 	return bases

@@ -291,6 +291,11 @@ func TestBuild_RoutesAValueFromTheDiscriminatorItIsATagOf(t *testing.T) {
 			return irtest.DocOf(discriminated("type/x", "x"),
 				subtypeModel("type/y", "Y", "type/z", "type/x"), subtypeModel("type/z", "Z", "type/y"))
 		}, map[ir.TypeID]map[string][]ir.TypeID{"type/x": {"Y": {"type/y"}, "Z": {"type/z"}}}},
+		{"a cycle of bases through the base, its own nearest", func() *ir.Document {
+			base := subtypeModel("type/a", "A", "type/b")
+			base.Discriminator = &ir.Discriminator{PropertyName: "a"}
+			return irtest.DocOf(base, subtypeModel("type/b", "", "type/a"))
+		}, map[ir.TypeID]map[string][]ir.TypeID{"type/a": {"A": {"type/a"}}}},
 		{"a base named through an alias", func() *ir.Document {
 			alias := &ir.Scalar{ID: "type/alias", Base: &ir.TypeRef{Target: "type/a"}}
 			return irtest.DocOf(discriminated("type/a", "a"), alias, subtypeModel("type/leaf", "Leaf", "type/alias"))
