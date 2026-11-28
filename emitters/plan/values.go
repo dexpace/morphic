@@ -17,12 +17,12 @@ type valueRoute struct {
 }
 
 // valueRoutes returns, by the model holding the discriminator each is a tag
-// of, the routes the DiscriminatorValue of each model of doc gives, ids being
-// doc's type IDs in sorted order, which each holder's routes keep. A value a
-// hierarchy's Mapping keys to its subtype is that discriminator's tag, which
-// the entry routes, so it gives none. Any other, a name or a tag read off the
-// subtype, is taken as the nearest discriminated ancestor's, which the IR
-// does not state, so no other discriminator above it routes the value
+// of, the routes each model's DiscriminatorValue gives, ids being doc's type
+// IDs in sorted order, which each holder's routes keep. A value a hierarchy's
+// Mapping keys to its subtype is that entry's to route, so it gives none. Any
+// other is taken as the nearest discriminated ancestor's, which the IR does
+// not state: no other discriminator above routes it, and one a compiler read
+// off a mixin's discriminator is routed from that ancestor all the same
 // (docs/emitters/plan/types.md#a-discriminators-routes, GitHub #2313).
 func valueRoutes(doc *ir.Document, ids []ir.TypeID) map[ir.TypeID][]valueRoute {
 	keyed := mappedRoutes(doc.Types)
@@ -118,10 +118,10 @@ func newNearestBases(doc *ir.Document, ids []ir.TypeID) *nearestBases {
 	}
 	// A reach at a level is as many hops below its holder through distinct
 	// models that each keep it, so it is at most len(ids)-1 below. At that
-	// depth every type is such a model, keeping the holder and holding no
-	// discriminator, so the level gives no model a holder: the loop stops a
-	// turn short of it, and a chain only the first of whose models holds one
-	// takes every turn.
+	// depth every type but the holder is such a model, keeping it already,
+	// and the holder takes none from itself, so the level gives no model a
+	// holder: the loop stops a turn short of it, and a chain only the first
+	// of whose models holds one takes every turn.
 	for turn := 0; len(level) > 0 && turn < len(ids)-1; turn++ {
 		level = bases.descend(doc.Types, subtypes, level)
 	}

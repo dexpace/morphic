@@ -118,17 +118,20 @@ subtype carrying it is that discriminator's tag, which the entry routes. Any oth
 source routes the subtype by or a tag a heuristic read off it, is taken as the tag of the subtype's
 nearest ancestor holding a discriminator, never the subtype itself: read level by level up `Base`
 and `Implements`, never `Mixins`, the one fewest hops away and, of those as near, the one reached
-through the earlier supertype, `Base` before `Implements`, as the OpenAPI compiler reads a subtype's
-ancestors, no schema its own ancestor
-([`discriminator-value`](../../compilers/openapi.md#discriminator-value)). So `Pet`, tagging
-`petType`, routes no `Labrador` that `Dog` composing `Pet` tags by `breed`, `lab: Labrador`, nor one
-`Dog` tags at `petType` itself: `lab` is `Dog`'s tag, not `Pet`'s. `WireKey` is `PropertyName`, or
-the wire name of the flattened member one of whose declarations is `Property`.
+through the earlier supertype, `Base` before `Implements`. So `Pet`, tagging `petType`, routes no
+`Labrador` that `Dog` composing `Pet` tags by `breed`, `lab: Labrador`, nor one `Dog` tags at
+`petType` itself: `lab` is `Dog`'s tag, not `Pet`'s. `WireKey` is `PropertyName`, or the wire name
+of the flattened member one of whose declarations is `Property`.
 
 The IR does not state which discriminator a value no `Mapping` keys is a tag of, and holds one value
-for each subtype, so the nearest is the plan's reading, the one the OpenAPI compiler reads an
-inferred tag against. Where a second discriminator above the subtype routes it too, the plan gives
-that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
+for each subtype, so the nearest is the plan's reading. The OpenAPI compiler reads such a tag
+against the nearest ancestor too, but through every `$ref` entry of an `allOf`, those it lowers as
+`Mixins` among them ([`discriminator-value`](../../compilers/openapi.md#discriminator-value)), so
+where a mixin edge reaches a discriminator the value may be that one's tag: `Seal` composing
+`Mammal`, itself composing an `Animal` that tags `kind`, and a `Tagged` that tags `type`, which
+`Seal` pins to `seal`, carries `seal`, and the plan routes it from `Animal` at `kind`, a route the
+source does not state (GitHub #2313). Where a second discriminator above the subtype routes it too,
+the plan gives that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
 every schema building on a parent, or a nearer one where a farther `Mapping` keys the value
 (GitHub #2313). Routing the value from every base above it, the design this replaces, gave `Pet` the
 route `petType: lab` that neither the document nor the IR states, which an encoder writing a
