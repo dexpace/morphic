@@ -40,6 +40,13 @@ func nullHeader(required bool, encoding *ir.Encoding) *ir.Document {
 	})
 }
 
+// nullableHeader is nullHeader's document with its header's type nullable.
+func nullableHeader(required bool) *ir.Document {
+	doc := nullHeader(required, nil)
+	doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0].Type.Nullable = true
+	return doc
+}
+
 // movedHeader is nullHeader's document with its header moved off the response
 // by place, which gives the operation the headers somewhere else to be read.
 func movedHeader(required bool, place func(*ir.Operation, []ir.Header)) *ir.Document {
@@ -72,8 +79,10 @@ func boundBy(required bool, bind func(*ir.OperationBindings)) *ir.Document {
 // writes it in a style, its own encoding included, to be the value left out,
 // unjudged in any wording (of a kind, an enum or a literal). Where a media
 // type, the body or another protocol's binding writes it, which may write a
-// null, it is judged, as are a required one's, a null default, a property's
-// and a scenario's null input, which leaves a parameter out by not naming it.
+// null, it is judged, as are a required one's, a property's and a scenario's
+// null input, which leaves a parameter out by not naming it. A nullable type
+// admits it everywhere. TestValidate_ANullDefaultOfAParameterLeftOutIsReported
+// holds a null default.
 func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	t.Parallel()
 	enumT, literalT := ir.TypeRef{Target: "type/e"}, ir.TypeRef{Target: "type/four"}
@@ -104,6 +113,11 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 	}
 	otp := func(bindings *ir.OperationBindings) {
 		bindings.OTP = &ir.OTPBinding{Behaviour: "gen_server", Kind: "call", Process: "channel/x"}
+	}
+	nullable := func(required bool) func(*ir.Parameter) {
+		return func(parameter *ir.Parameter) {
+			parameter.Type.Nullable, parameter.Required, parameter.Examples = true, required, []ir.Example{{Value: null()}}
+		}
 	}
 	onDefault := func(operation *ir.Operation, headers []ir.Header) {
 		operation.Default = &ir.Response{Headers: headers}
@@ -138,6 +152,10 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a parameter not required, under a message binding", boundBy(false, message), nullOfList},
 		{"a parameter not required, under a GraphQL binding", boundBy(false, graphQL), nullOfList},
 		{"a parameter not required, under an OTP binding", boundBy(false, otp), nullOfList},
+		{"a parameter not required, of a nullable type", parameterOperation(nullable(false)), nil},
+		{"a required parameter, of a nullable type", parameterOperation(nullable(true)), nil},
+		{"a required parameter, under form", parameterOperation(nullExample(true, nil), bindsQ(styled("form", nil))), nullOfList},
+		{"a required parameter, under an RPC binding", boundBy(true, rpc), nullOfList},
 		{"a required parameter, under a content type", parameterOperation(nullExample(true, nil), content), nullOfList},
 		{"a required parameter, in an encoding of its own", parameterOperation(nullExample(true, encoding)), nullOfList},
 		{"a required parameter, in a media type of its own", parameterOperation(nullExample(true, mediaType)), nullOfList},
@@ -150,6 +168,8 @@ func TestValidate_ANullExampleOfAParameterLeftOutIsNotReported(t *testing.T) {
 		{"a response's header not required", nullHeader(false, nil), nil},
 		{"a response's header not required, declared by content", nullHeader(false, mediaType), nullOfHeader},
 		{"a response's header not required, in an encoding of its own", nullHeader(false, encoding), nil},
+		{"a response's header not required, of a nullable type", nullableHeader(false), nil},
+		{"a required response's header, of a nullable type", nullableHeader(true), nil},
 		{"a common error's header not required", commonError(false), nil},
 		{"a default response's header not required", movedHeader(false, onDefault), nil},
 		{"an error's header not required", movedHeader(false, onError), nil},
