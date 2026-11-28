@@ -296,9 +296,9 @@ without the quotes that are no part of either.
 [naming](../../ir/naming.md) derives `Canonical` from `Source` by one grammar, which lives in `ir`
 (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
 (`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar. `ir` has one
-reading of a name into its words as written, and `CanonicalWords` is their lowercased join; `ir`
-gains `SourceWords`, its sibling, which returns those words, so each spelling aligns with its
-canonical word and no emitter carries a second copy of the grammar. A name with no `Source` — one
+reading of a name into its words as written, and `CanonicalWords` is their lowercased join;
+`ir.SourceWords`, its sibling, returns those words, so each spelling aligns with its canonical
+word and no emitter carries a second copy of the grammar. A name with no `Source` — one
 built from a hint — has no spellings, and neither has a `Naming` the grammar does not derive, which
 `Words` leaves unspelled rather than guess. A convention may read a spelling (`Spelled`) to recover
 the letter case of a word whose boundaries the canonical form already fixes: `iOSVersion` is

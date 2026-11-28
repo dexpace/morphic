@@ -595,6 +595,7 @@ limit by that eighth between prunes, and a ledger it cannot read prunes at once.
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
 ├── scratchstate/           # Layer 0 — scratch state both checkers read collection after collection.
+├── pathfold/               # Layer 0 — the path fold, and what makes a path segment portable.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
 │   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
@@ -611,7 +612,7 @@ morphic/
 │   │                       #             five layers (below): `git ls-files` lists them.
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
-├── emitters/               # Layer 2 — options/, typemap/; contract, plan layer, registry (future).
+├── emitters/               # Layer 2 — manifest/, options/, typemap/; contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
@@ -659,6 +660,9 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `scratchstate` imports only the standard library: the map `ir/irverify` and `pass` each empty
   between collections, one type rather than a copy in each, and no morphic concept, so it sits below
   `ir`.
+- `pathfold` imports `golang.org/x/text` alone: the fold a file system compares paths by and the
+  rules of a portable segment, no morphic concept, so it sits beside `barrier`, below the engine,
+  the contract (`emitters`), `emitters/naming` and `emitters/manifest`, which compare by it.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries), and `pass` also
   `ir/irfacts` and `scratchstate` — never each other, never `emitters` or `engine`. A compiler also
