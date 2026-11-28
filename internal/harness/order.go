@@ -13,7 +13,6 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -326,8 +325,8 @@ const maxPermutedDocuments = 1024
 // reencodeMappings returns src parsed and re-encoded with its entry order
 // intact, every document of its stream: the same normalization reverseMappings
 // applies, minus the permutation. It is what the permuted source is compared
-// against, so a spelling the encoder rewrites (a flow-style implicit null comes
-// back as an empty string) changes both sides alike. A Decline says why there is
+// against, so a spelling the encoder rewrites (a block scalar comes back
+// double-quoted) changes both sides alike. A Decline says why there is
 // no re-encoding; it is empty when there is one.
 func reencodeMappings(src []byte) ([]byte, Decline) {
 	docs, why := parseStream(src)
@@ -365,11 +364,12 @@ func reverseMappings(src []byte) ([]byte, Decline) {
 
 // parseStream parses src as a YAML stream, a node per document, or says why
 // it cannot: it does not parse, or holds more documents than the rewrite reads.
-// It parses with the YAML library alone, which lexes YAML 1.1, so a source only
-// the compiler's reader reads is declined as not YAML (#1768): a JSON one
-// writing a surrogate pair, and a YAML one writing an escaped slash, a pair of
-// surrogate escapes or a raw U+0085, U+2028 or U+2029 in a comment, or opening
-// with a %YAML 1.2 directive.
+// It reads with the YAML library, which lexes YAML 1.1 (#1768), so it declines
+// as not YAML what only the compiler reads: a JSON source writing a surrogate
+// pair, and a YAML one writing an escaped slash, a pair of surrogate escapes, a
+// raw U+0085, U+2028 or U+2029 in a comment, or a %YAML 1.2 directive first.
+// Such a character raw in a scalar ends a line, where the compiler reads a
+// character.
 func parseStream(src []byte) ([]*yaml.Node, Decline) {
 	dec := yaml.NewDecoder(bytes.NewReader(src))
 	var docs []*yaml.Node
@@ -403,13 +403,13 @@ var encodeYAML = func(docs []*yaml.Node) ([]byte, error) {
 // encodeFaithfully encodes a parsed or permuted stream and parses the encoding
 // back, or says why it cannot stand for the stream: a tree nested past the
 // bound, one the encoder refuses, text that does not parse, or text that reads
-// otherwise, which would have the oracles compile another spec. What the
-// encoder would drop, misplace or change is restyled first: an empty first
-// document (tagEmptyFirstDocument) and a block scalar (restyleBlockScalars).
+// otherwise. What the encoder would write otherwise is restyled first
+// (restyleScalars). The read-back is the YAML library's (parseStream), so it
+// cannot see the compiler read the text otherwise;
+// TestEncodeFaithfully_CompilesAsTheSourceDoes holds the compiler to it.
 func encodeFaithfully(docs []*yaml.Node) ([]byte, Decline) {
-	tagEmptyFirstDocument(docs)
 	for _, doc := range docs {
-		if why := restyleBlockScalars(doc, 0); why != "" {
+		if why := restyleScalars(doc, 0); why != "" {
 			return nil, why
 		}
 	}
@@ -432,87 +432,44 @@ func encodeFaithfully(docs []*yaml.Node) ([]byte, Decline) {
 	return out, ""
 }
 
-// tagEmptyFirstDocument has the encoder write the tag of the first document's
-// root when that root is an empty plain scalar, as an empty document's is. The
-// encoder writes the first document without a start marker, so such a root
-// writes nothing and the stream reads back without the document
-// (TestEncodeYAML_DropsAnEmptyFirstDocument); tagged, it reads back as written.
-func tagEmptyFirstDocument(docs []*yaml.Node) {
-	if len(docs) == 0 || len(docs[0].Content) != 1 {
-		return
-	}
-	if root := docs[0].Content[0]; root.Kind == yaml.ScalarNode && root.Value == "" && root.Style == 0 {
-		root.Style = yaml.TaggedStyle
-	}
-}
-
-// restyleBlockScalars writes each folded scalar at or below node literal, and
-// double-quotes each literal one led by a space, a tab or a line break
-// (ledByIndentation) or ending in two line breaks (endsInTwoLineBreaks).
-// Encoded folded, a value holding a more-indented, tab-led or whitespace-only
-// line gains a break (TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine),
-// and so does one kept and ending blank
-// (TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines); literal, it
-// reads alike. Double-quoted, the value and a tag other than a string's are
-// written back. It declines a tree nested past the bound.
-func restyleBlockScalars(node *yaml.Node, depth int) Decline {
+// restyleScalars double-quotes each literal or folded scalar at or below node,
+// keeping its tag, which the encoder would drop where the value resolves to it
+// plain, and tags each empty null. In block style, a value led by whitespace
+// or a break, holding a more-indented line, U+2028 or U+2029, or kept and
+// ending blank encodes to text that does not parse or reads otherwise;
+// double-quoted, each line break is escaped. Untagged, an empty null encodes
+// as an empty string in a flow collection or key, and as nothing at a first
+// document's root. It declines a tree past the bound.
+func restyleScalars(node *yaml.Node, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	if node.Kind == yaml.ScalarNode && node.Style&yaml.FoldedStyle != 0 {
-		node.Style = node.Style&^yaml.FoldedStyle | yaml.LiteralStyle
+	if node.Kind == yaml.ScalarNode && node.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
+		node.Style = node.Style&yaml.TaggedStyle | yaml.DoubleQuotedStyle
 	}
-	if node.Kind == yaml.ScalarNode && node.Style&yaml.LiteralStyle != 0 &&
-		(ledByIndentation(node.Value) || endsInTwoLineBreaks(node.Value)) {
-		node.Style = yaml.DoubleQuotedStyle
+	if node.Kind == yaml.ScalarNode && node.Value == "" && node.ShortTag() == nullTag {
+		node.Style |= yaml.TaggedStyle
 	}
 	for _, child := range node.Content {
-		if why := restyleBlockScalars(child, depth+1); why != "" {
+		if why := restyleScalars(child, depth+1); why != "" {
 			return why
 		}
 	}
 	return ""
 }
 
-// ledByIndentation reports whether value starts with a rune the encoder gets a
-// block scalar's indentation indicator wrong for. For a space or a line break
-// (a line feed, a line separator or a paragraph separator) it writes an
-// indicator of its own indent step, which ends the scalar early in a block
-// sequence's item or the mapping an item opens
-// (TestEncodeYAML_MisplacesABlockScalarLedByIndentation); for a tab it writes
-// none, which the decoder refuses at any position
-// (TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab). A value led by the
-// other line breaks, a carriage return or a next line, the encoder writes
-// double-quoted itself.
-func ledByIndentation(value string) bool {
-	first, _ := utf8.DecodeRuneInString(value)
-	return strings.ContainsRune(" \t\n\u2028\u2029", first)
-}
-
-// endsInTwoLineBreaks reports whether value's last two runes are line breaks
-// the encoder writes a block scalar kept for: a line feed, a line separator or
-// a paragraph separator. Kept, a literal scalar as the last node of a document
-// a comment ends reads back with a line break more at its end
-// (TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar). A value of
-// one of those line breaks alone is written kept too, and ledByIndentation
-// quotes it. A value ending in a carriage return or a next line the encoder
-// writes double-quoted itself.
-func endsInTwoLineBreaks(value string) bool {
-	last, size := utf8.DecodeLastRuneInString(value)
-	before, _ := utf8.DecodeLastRuneInString(value[:len(value)-size])
-	return strings.ContainsRune("\n\u2028\u2029", last) && strings.ContainsRune("\n\u2028\u2029", before)
-}
+// nullTag is the tag the YAML library resolves an implicit null to.
+const nullTag = "!!null"
 
 // readsBackAsWritten declines read, a node of an encoding parsed back, where it
-// or a node below it differs from its counterpart in written in kind, value or
-// number of entries, and a tree nested past the bound. Tags are not compared:
-// the encoder writes a flow mapping's implicit null back as an empty string,
-// which both arms of an oracle compile alike (reencodeMappings).
+// or a node below it differs from its counterpart in written in kind, resolved
+// tag, value or number of entries, and a tree nested past the bound.
 func readsBackAsWritten(written, read *yaml.Node, depth int) Decline {
 	if depth > maxReverseDepth {
 		return DeclineTooDeep
 	}
-	if written.Kind != read.Kind || written.Value != read.Value || len(written.Content) != len(read.Content) {
+	if written.Kind != read.Kind || written.ShortTag() != read.ShortTag() || written.Value != read.Value ||
+		len(written.Content) != len(read.Content) {
 		return DeclineReencodingReadsOtherwise
 	}
 	for i, child := range written.Content {

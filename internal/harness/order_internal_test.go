@@ -891,9 +891,9 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 		src  string
 	}{
 		{
-			// yaml.Marshal re-emits the flow mapping "{A}" — whose value is an
-			// implicit null — as "{A: ''}", so the second compile reads an empty
-			// string where the first read null. Block style keeps the null.
+			// Untagged, the encoder writes the flow mapping "{A}", whose value
+			// is an implicit null, as "{A: ''}", an empty string; the rewrite
+			// tags the null, so both orders read it (restyleScalars).
 			name: "flow-style implicit null",
 			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths: {}\n" +
 				"components:\n schemas:\n  0:\n   allOf:\n    - {A}\n",
@@ -1115,17 +1115,16 @@ func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
 		"a second json.WithMarshalers replaces orderFree")
 }
 
-// TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation holds both order
-// oracles to asking of a spec whose block scalar starts with a line break or a
-// space inside a block sequence item (#2153), where the encoder writes an
-// indentation indicator the decoder reads as ending the scalar. The neighbours
-// that never tripped it, the scalar outside a sequence item, led by text, or
-// written double-quoted, stay asked. So do three the encoder trips on anywhere:
-// the info's description folded around a more-indented line, led by a tab, and
-// kept and ending blank before a comment. The sequence oracle reverses the
-// allOf of the last rows.
-func TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation(t *testing.T) {
+// TestCheck_OrderOraclesPassEachBlockScalar holds both order oracles to asking
+// and passing a spec whose block scalar the encoder writes otherwise than it
+// reads: led by a line break or a space inside a block sequence item (#2153),
+// folded around a more-indented line, led by a tab, kept and ending blank
+// before a comment, and ending in a raw paragraph separator, which the encoder
+// writes with no line break after it. The neighbours that never tripped it stay
+// asked and passed. The sequence oracle reverses the allOf of the last rows.
+func TestCheck_OrderOraclesPassEachBlockScalar(t *testing.T) {
 	const opening = "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\npaths: {}\n"
+	const allOfTail = "components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n        - title: b\n"
 	allOf := func(description string) string {
 		return opening + "components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n" +
 			"          description: " + description + "\n        - title: b\n"
@@ -1169,20 +1168,25 @@ func TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation(t *testing.T) {
 		{
 			name: "the info's description folded around an indented line",
 			src: "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\n  description: >\n    Call it like this:\n\n" +
-				"      curl https://example.com\n\n    and read the reply.\npaths: {}\n" +
-				"components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n        - title: b\n",
+				"      curl https://example.com\n\n    and read the reply.\npaths: {}\n" + allOfTail,
 			sequence: passed(OracleSequenceOrder),
 		},
 		{
 			name: "the info's description led by a tab",
 			src: "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\n  description: |2\n    \ttext led by a tab\npaths: {}\n" +
-				"components:\n  schemas:\n    S:\n      allOf:\n        - type: object\n        - title: b\n",
+				allOfTail,
 			sequence: passed(OracleSequenceOrder),
 		},
 		{
 			name: "the info's description kept and ending blank before a comment",
-			src: "openapi: 3.0.1\npaths: {}\ncomponents:\n  schemas:\n    S:\n      allOf:\n        - type: object\n        - title: b\n" +
+			src: "openapi: 3.0.1\npaths: {}\n" + allOfTail +
 				"info:\n  title: t\n  version: \"1\"\n  description: |+\n    text and a blank line\n\n# the end\n",
+			sequence: passed(OracleSequenceOrder),
+		},
+		{
+			name: "the info's description ending in a raw paragraph separator",
+			src: "openapi: 3.0.1\ninfo:\n  title: t\n  version: \"1\"\n  description: |\n    text\u2029\npaths: {}\n" +
+				allOfTail,
 			sequence: passed(OracleSequenceOrder),
 		},
 	}
@@ -1201,6 +1205,43 @@ func TestCheck_OrderOraclesAskOfABlockScalarLedByIndentation(t *testing.T) {
 	}
 }
 
+// TestEncodeFaithfully_CompilesAsTheSourceDoes holds the re-encoding of each
+// spec whose scalar the restyle reaches to compiling as the source does, with
+// the same diagnostics. A read-back with the library that wrote the text
+// cannot disagree with it, and the compiler can. A raw U+0085, U+2028 or
+// U+2029 in a scalar is not among them: the library reads it otherwise than
+// the compiler before any encoding (parseStream).
+func TestEncodeFaithfully_CompilesAsTheSourceDoes(t *testing.T) {
+	const opening = "openapi: 3.1.0\ninfo:\n  title: t\n  version: \"1\"\n"
+	tests := map[string]string{
+		"folded around a more-indented line":     opening + "  description: >\n    Arises when:\n      - a list item\npaths: {}\n",
+		"kept and ending blank before a comment": opening + "paths: {}\nx-note: |+\n  x\n\n\n# c\n",
+		"led by a break in a sequence item":      opening + "paths: {}\ntags:\n  - name: n\n    description: |\n      \n      x\n",
+		"led by a space in a sequence item":      opening + "paths: {}\ntags:\n  - name: n\n    description: |2\n        x\n",
+		"led by a tab":                           opening + "  description: |2\n    \tx\npaths: {}\n",
+		"an implicit null in a flow mapping": opening + "paths:\n  /w:\n    get:\n      responses:\n" +
+			"        \"200\": {description: d, x-a}\n",
+	}
+	for name, src := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reencoded, why := reencodeMappings([]byte(src))
+			require.Empty(t, why)
+
+			doc, diags, err := compile(context.Background(), "spec.yaml", []byte(src), passes())
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+			other, otherDiags, err := compile(context.Background(), "spec.yaml", reencoded, passes())
+			require.NoError(t, err)
+			require.NotNil(t, other)
+
+			detail, same := sameDocument(doc, other)
+			assert.True(t, same, "%q re-encodes to %q, which compiles otherwise: %s", src, reencoded, detail)
+			assert.Equal(t, diagnosticSet(diags), diagnosticSet(otherDiags))
+		})
+	}
+}
+
 // inSequenceItem is a stream of one document holding scalar as a value of the
 // mapping a block sequence item opens, a place the encoder misplaces an
 // indentation indicator at.
@@ -1210,13 +1251,8 @@ func inSequenceItem(scalar *yaml.Node) []*yaml.Node {
 	return []*yaml.Node{{Kind: yaml.DocumentNode, Content: []*yaml.Node{sequence}}}
 }
 
-// leaders are a space and every YAML line break, each leading a value. The
-// encoder writes a block scalar's indentation indicator for the ones indicated
-// lists, and writes the others double-quoted itself.
-var (
-	leaders   = []string{" ", "\r", "\n", "\u0085", "\u2028", "\u2029"}
-	indicated = []string{" ", "\n", "\u2028", "\u2029"}
-)
+// leaders are a space, a tab and every YAML line break, each leading a value.
+var leaders = []string{" ", "\t", "\r", "\n", "\u0085", "\u2028", "\u2029"}
 
 // scalarValues is every scalar's value in docs, in the order the encoder
 // writes them, read independently of the walk under test.
@@ -1238,168 +1274,12 @@ func scalarValues(t *testing.T, docs []*yaml.Node) []string {
 	return values
 }
 
-// TestEncodeYAML_MisplacesABlockScalarLedByIndentation is the record of an
-// encoder behaviour restyleBlockScalars double-quotes for: a literal or
-// folded scalar led by a space or a line break, as a value of the mapping a
-// block sequence item opens, encodes to text that does not parse. Should the
-// encoder stop doing so, this goes red and a space can leave ledByIndentation,
-// and the line breaks can once
-// TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar is red too.
-func TestEncodeYAML_MisplacesABlockScalarLedByIndentation(t *testing.T) {
-	t.Parallel()
-	for _, style := range []yaml.Style{yaml.LiteralStyle, yaml.FoldedStyle} {
-		for _, leader := range indicated {
-			t.Run(fmt.Sprintf("%v %q", style, leader), func(t *testing.T) {
-				t.Parallel()
-				out, err := encodeYAML(inSequenceItem(&yaml.Node{Kind: yaml.ScalarNode, Style: style, Value: leader + "x\n"}))
-				require.NoError(t, err)
-
-				_, why := parseStream(out)
-				assert.Equal(t, DeclineNotYAML, why, "the encoder wrote %q", out)
-			})
-		}
-	}
-}
-
-// TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab is the record of an
-// encoder behaviour restyleBlockScalars double-quotes for: a block scalar led
-// by a tab is written with no indentation indicator, at a root mapping's value
-// as in an item, and that text does not parse. Should the encoder stop doing
-// so, this goes red and a tab can leave ledByIndentation.
-func TestEncodeYAML_OmitsTheIndicatorOfABlockScalarLedByATab(t *testing.T) {
-	t.Parallel()
-	for name, src := range map[string]string{
-		"a root mapping's value":  "a: |2\n  \tx\n",
-		"an item's mapping value": "- k: |2\n    \tx\n",
-		"an item, folded":         "- >2\n  \tx\n  y\n",
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			docs, why := parseStream([]byte(src))
-			require.Empty(t, why)
-			out, err := encodeYAML(docs)
-			require.NoError(t, err)
-
-			_, why = parseStream(out)
-			assert.Equal(t, DeclineNotYAML, why, "%q encodes to %q", src, out)
-		})
-	}
-}
-
-// TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine is the record of an
-// encoder behaviour restyleBlockScalars writes a folded scalar literal for: a
-// folded scalar holding a more-indented, tab-led or whitespace-only line
-// encodes with a line break more before that line, so its value reads back
-// changed. Should the encoder stop doing so, this goes red; a folded scalar
-// can keep its style once
-// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines is red too and
-// the double-quoting in restyleBlockScalars tests a folded scalar as it does a
-// literal one.
-func TestEncodeYAML_AddsABreakBeforeAMoreIndentedFoldedLine(t *testing.T) {
-	t.Parallel()
-	assertEachReadsBackChanged(t, map[string]string{
-		"a more-indented line":   "a: >\n  x\n    x\n",
-		"a tab-led line":         "a: >\n  x\n  \tx\n",
-		"a whitespace-only line": "a: >\n  x\n   \t\n  x\n",
-	})
-}
-
-// TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines is the record of
-// an encoder behaviour restyleBlockScalars writes a folded scalar literal for:
-// a kept folded scalar ending in a blank line encodes with a line break more at
-// its end. Should the encoder stop doing so, this goes red.
-func TestEncodeYAML_AddsABreakAfterAKeptFoldedScalarsBlankLines(t *testing.T) {
-	t.Parallel()
-	assertEachReadsBackChanged(t, map[string]string{
-		"one blank line":  "a: >+\n  x\n\n",
-		"two blank lines": "a: >+\n  x\n  y\n\n\n",
-	})
-}
-
-// TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar is the record of
-// the encoder behaviour restyleBlockScalars double-quotes a literal scalar
-// ending in a blank line for: written kept as the last node of a document a
-// comment ends, it encodes with a line break more before the comment. Should
-// the encoder stop doing so, this goes red and endsInTwoLineBreaks can go.
-func TestEncodeYAML_AddsABreakBeforeAFootCommentAfterAKeptScalar(t *testing.T) {
-	t.Parallel()
-	assertEachReadsBackChanged(t, map[string]string{
-		"a root mapping's value":    "a: |+\n  x\n\n# c\n",
-		"an item":                   "- |+\n  x\n\n# c\n",
-		"a nested mapping's value":  "a:\n  b: |+\n    x\n\n  # c\n",
-		"before another document":   "a: |+\n  x\n\n# c\n---\nb: 1\n",
-		"a value of one line break": "a: |+\n\n# c\n",
-	})
-}
-
-// assertEachReadsBackChanged holds each named source to an encoding that
-// parses and reads back with another scalar value than the source holds.
-func assertEachReadsBackChanged(t *testing.T, sources map[string]string) {
-	t.Helper()
-	for name, src := range sources {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			docs, why := parseStream([]byte(src))
-			require.Empty(t, why)
-			want := scalarValues(t, docs)
-			out, err := encodeYAML(docs)
-			require.NoError(t, err)
-
-			read, why := parseStream(out)
-			require.Empty(t, why)
-			assert.NotEqual(t, want, scalarValues(t, read), "%q encodes to %q", src, out)
-		})
-	}
-}
-
-// TestEncodeYAML_DropsAnEmptyFirstDocument is the record of the encoder
-// behaviour tagEmptyFirstDocument exists for: a stream whose first document is
-// empty encodes to text that reads back without it, while an empty document
-// after the first is kept. Should the encoder keep the first, this goes red and
-// the tagging can go.
-func TestEncodeYAML_DropsAnEmptyFirstDocument(t *testing.T) {
-	t.Parallel()
-	for src, want := range map[string]int{"---\n---\na: 1\n": 1, "---\n": 0, "a: 1\n---\n---\nb: 2\n": 3} {
-		docs, why := parseStream([]byte(src))
-		require.Empty(t, why)
-		out, err := encodeYAML(docs)
-		require.NoError(t, err)
-
-		read, why := parseStream(out)
-		require.Empty(t, why)
-		assert.Len(t, read, want, "%q encodes to %q", src, out)
-	}
-}
-
-// TestEncodeFaithfully_KeepsAnEmptyFirstDocument holds a stream whose first
-// document is empty to reading back with it, and a stream whose first
-// document is not to the encoding it had.
-func TestEncodeFaithfully_KeepsAnEmptyFirstDocument(t *testing.T) {
-	t.Parallel()
-	tests := []struct{ src, want string }{
-		{src: "---\n---\na: 1\n", want: "!!null\n---\na: 1\n"},
-		{src: "---\n", want: "!!null\n"},
-		{src: "--- ''\n---\na: 1\n", want: "''\n---\na: 1\n"},
-		{src: "--- ~\n---\na: 1\n", want: "~\n---\na: 1\n"},
-		{src: "a: 1\n---\n---\nb: 2\n", want: "a: 1\n---\n\n---\nb: 2\n"},
-	}
-	for _, tc := range tests {
-		docs, why := parseStream([]byte(tc.src))
-		require.Empty(t, why)
-
-		out, why := encodeFaithfully(docs)
-		require.Empty(t, why, "%q", tc.src)
-		assert.Equal(t, tc.want, string(out), "%q", tc.src)
-	}
-	assert.NotPanics(t, func() { tagEmptyFirstDocument([]*yaml.Node{{Kind: yaml.DocumentNode}}) },
-		"a document holding no root is the encoder's to refuse")
-}
-
-// TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack holds each place
-// and spelling of a block scalar led by a space, a tab or a line break to
+// TestEncodeFaithfully_WritesEveryBlockScalarBack holds each place and
+// spelling of a block scalar the encoder writes otherwise in block style to
 // reading back with every scalar's value as written: written by the decoder,
-// and built with each leader the decoder cannot be made to write.
-func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
+// and built with each leader, ending and separator the decoder cannot be made
+// to write.
+func TestEncodeFaithfully_WritesEveryBlockScalarBack(t *testing.T) {
 	t.Parallel()
 	parsed := func(src string) func(t *testing.T) []*yaml.Node {
 		return func(t *testing.T) []*yaml.Node {
@@ -1421,8 +1301,16 @@ func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
 		"in an item of a root sequence":       parsed("- k: |\n    \n    x\n"),
 		"tagged":                              parsed("a:\n  - k: !t |\n      \n      x\n"),
 		"anchored and aliased":                parsed("a:\n  - k: &n |\n      \n      x\n  - j: *n\n"),
-		"a long value, which the quote folds": parsed("a:\n  - k: |\n      \n      " + strings.Repeat("word ", 40) + "\n"),
+		"a long value":                        parsed("a:\n  - k: |\n      \n      " + strings.Repeat("word ", 40) + "\n"),
 		"a root mapping's value led by a tab": parsed("a: |2\n  \tx\n"),
+		"folded around a more-indented line":  parsed("a: >\n  x\n    x\n"),
+		"folded around a tab-led line":        parsed("a: >\n  x\n  \tx\n"),
+		"folded around a whitespace line":     parsed("a: >\n  x\n   \t\n  x\n"),
+		"folded, kept and ending blank":       parsed("a: >+\n  x\n    x\n\n"),
+		"kept and ending blank before a note": parsed("a: |+\n  x\n\n# c\n"),
+		"an item kept before a comment":       parsed("- |+\n  x\n\n# c\n"),
+		"nested and kept before a comment":    parsed("a:\n  b: |+\n    x\n\n  # c\n"),
+		"kept before another document":        parsed("a: |+\n  x\n\n# c\n---\nb: 1\n"),
 		"a kept line break before a comment":  parsed("a: |+\n\n# c\n"),
 	}
 	for _, leader := range leaders {
@@ -1430,53 +1318,10 @@ func TestEncodeFaithfully_WritesABlockScalarLedByIndentationBack(t *testing.T) {
 			return inSequenceItem(&yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: leader + "x\n"})
 		}
 	}
-	for name, docs := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			written := docs(t)
-			want := scalarValues(t, written)
-
-			out, why := encodeFaithfully(written)
-			require.Empty(t, why, "the encoding of %q", out)
-
-			read, why := parseStream(out)
-			require.Empty(t, why)
-			assert.Equal(t, want, scalarValues(t, read))
-		})
-	}
-}
-
-// TestEncodeFaithfully_WritesAScalarEndingInTwoLineBreaksBack holds each place
-// and spelling of a block scalar ending in two line breaks, folded or the last
-// node of a document a comment ends, to reading back with every scalar's value
-// as written: written by the decoder, and built with each line break the
-// encoder writes kept.
-func TestEncodeFaithfully_WritesAScalarEndingInTwoLineBreaksBack(t *testing.T) {
-	t.Parallel()
-	sources := []string{
-		"a: >+\n  x\n    x\n\n",
-		"a: >+\n  x\n\n",
-		"a: |+\n  x\n\n# c\n",
-		"- |+\n  x\n\n# c\n",
-		"a:\n  b: |+\n    x\n\n  # c\n",
-		"a: |+\n  x\n\n# c\n---\nb: 1\n",
-		"a: >+\n  x\n\n# c\n",
-		"a: !t |+\n  x\n\n# c\n",
-		"a: |+\n  x\n\n\n# c\n",
-	}
-	tests := map[string]func(t *testing.T) []*yaml.Node{}
-	for _, src := range sources {
-		tests[fmt.Sprintf("parsed %q", src)] = func(t *testing.T) []*yaml.Node {
-			t.Helper()
-			docs, why := parseStream([]byte(src))
-			require.Empty(t, why)
-			return docs
-		}
-	}
-	for _, value := range []string{"x\u2028\n", "x\n\u2029", "x\u2029\u2028"} {
-		tests[fmt.Sprintf("built, ending %q", value)] = func(*testing.T) []*yaml.Node {
+	for _, value := range []string{"x\u2028\n", "x\n\u2029", "x\u2029\u2028", "x\u2028y\n", "x\u2029"} {
+		tests[fmt.Sprintf("built, holding %q before a key and a comment", value)] = func(*testing.T) []*yaml.Node {
 			mapping := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-				scalarNode("a"), {Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: value},
+				scalarNode("a"), {Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: value}, scalarNode("b"), scalarNode("c"),
 			}}
 			return []*yaml.Node{{Kind: yaml.DocumentNode, FootComment: "# c", Content: []*yaml.Node{mapping}}}
 		}
@@ -1492,37 +1337,43 @@ func TestEncodeFaithfully_WritesAScalarEndingInTwoLineBreaksBack(t *testing.T) {
 
 			read, why := parseStream(out)
 			require.Empty(t, why)
-			assert.Equal(t, want, scalarValues(t, read))
+			assert.Equal(t, want, scalarValues(t, read), "the encoding of %q", out)
 		})
 	}
 }
 
 // TestEncodeFaithfully_KeepsTheTagOfAScalarItQuotes pins that a block scalar
-// led by indentation keeps its tag once double-quoted: a tag a string's value
-// does not resolve to is written, and a string's reads back alike unwritten.
+// keeps its tag once double-quoted: a tag its value resolves to nowhere, a
+// string's, and the one its value would resolve to written plain, which the
+// encoder omits from a quoted scalar it was not told to tag.
 func TestEncodeFaithfully_KeepsTheTagOfAScalarItQuotes(t *testing.T) {
 	t.Parallel()
-	for _, tag := range []string{"!t", "!!binary", "!!str"} {
-		docs, why := parseStream([]byte("- k: " + tag + " |\n    \n    x\n"))
+	for _, src := range []string{
+		"- k: !t |\n    \n    x\n",
+		"- k: !t >\n    \n    x\n",
+		"- k: !!binary |\n    \n    eA==\n",
+		"- k: !!str >\n    \n    x\n",
+		"- k: !!int |-\n    1\n",
+		"- k: !!bool >-\n    true\n",
+		"- k: !!null |-\n- j\n",
+	} {
+		docs, why := parseStream([]byte(src))
 		require.Empty(t, why)
 		want := docs[0].Content[0].Content[0].Content[1].Tag
 
 		out, why := encodeFaithfully(docs)
-		require.Empty(t, why)
+		require.Empty(t, why, "%q is written %q", src, out)
 
 		read, why := parseStream(out)
 		require.Empty(t, why)
-		assert.Equal(t, want, read[0].Content[0].Content[0].Content[1].Tag, "%s is written %q", tag, out)
+		assert.Equal(t, want, read[0].Content[0].Content[0].Content[1].Tag, "%q is written %q", src, out)
 	}
 }
 
-// TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten pins that the restyle
-// reaches no scalar the encoder writes back in its own style: a quoted one led
-// by a space, a literal scalar led by text and ending in one line break or in
-// text, and a literal scalar led by a line break the encoder quotes itself. A
-// folded scalar is written literal
-// (TestEncodeFaithfully_WritesAFoldedScalarLiteral).
-func TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten(t *testing.T) {
+// TestEncodeFaithfully_DoubleQuotesEveryBlockScalarAlone pins the style each
+// scalar reads back in: a literal or folded one double-quoted, tagged where it
+// was, and a plain, single-quoted or double-quoted one as written.
+func TestEncodeFaithfully_DoubleQuotesEveryBlockScalarAlone(t *testing.T) {
 	t.Parallel()
 	styles := func(docs []*yaml.Node) []yaml.Style {
 		item := docs[0].Content[0].Content[0]
@@ -1532,63 +1383,49 @@ func TestEncodeFaithfully_LeavesEveryOtherScalarAsWritten(t *testing.T) {
 		}
 		return out
 	}
-	docs, why := parseStream([]byte("- k: ' x'\n  j: \" x\"\n  l: |\n    text\n  m: |-\n    text\n    x\n"))
+	docs, why := parseStream([]byte("- p: x\n  s: ' x'\n  d: \" x\"\n  l: |\n    x\n  f: >\n    x\n  t: !t |-\n    x\n"))
 	require.Empty(t, why)
-	item := docs[0].Content[0].Content[0]
-	item.Content = append(item.Content, scalarNode("r"), &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: "\rx\n"})
-	want := styles(docs)
 
 	out, why := encodeFaithfully(docs)
 	require.Empty(t, why)
 
 	read, why := parseStream(out)
 	require.Empty(t, why)
-	assert.Equal(t, want, styles(docs), "the restyle reaches no scalar of these")
-	assert.Equal(t, []yaml.Style{yaml.SingleQuotedStyle, yaml.DoubleQuotedStyle, yaml.LiteralStyle, yaml.LiteralStyle, yaml.DoubleQuotedStyle},
-		styles(read), "each is written in its own style but the last, which the encoder quotes itself")
+	assert.Equal(t, []yaml.Style{
+		0, yaml.SingleQuotedStyle, yaml.DoubleQuotedStyle, yaml.DoubleQuotedStyle, yaml.DoubleQuotedStyle,
+		yaml.TaggedStyle | yaml.DoubleQuotedStyle,
+	}, styles(read), "the encoding %q", out)
 }
 
-// TestEncodeFaithfully_WritesAFoldedScalarLiteral holds each folded scalar,
-// plain or holding a line the encoder writes a break more beside, clipped,
-// stripped and tagged, to reading back with every scalar's value as written,
-// literal, and with its tag, written where it was. A kept one ending in two
-// line breaks is double-quoted
-// (TestEncodeFaithfully_WritesAScalarEndingInTwoLineBreaksBack).
-func TestEncodeFaithfully_WritesAFoldedScalarLiteral(t *testing.T) {
+// TestEncodeFaithfully_WritesAnImplicitNullBack holds each plain empty null to
+// an encoding that writes its tag, so it reads back a null: an empty document
+// first in its stream or later, a flow mapping's value and key, and a block
+// mapping's value. An explicit null and an empty string keep their encodings.
+func TestEncodeFaithfully_WritesAnImplicitNullBack(t *testing.T) {
 	t.Parallel()
-	tests := map[string]string{
-		"plain text":             "a: >\n  x\n  x\n",
-		"a more-indented line":   "a: >\n  x\n    x\n",
-		"a tab-led line":         "a: >\n  x\n  \tx\n",
-		"a whitespace-only line": "a: >\n  x\n   \t\n  x\n",
-		"stripped":               "a: >-\n  x\n    x\n",
-		"tagged":                 "a: !t >\n  x\n    x\n",
-		"tagged a string":        "a: !!str >\n  x\n    x\n",
+	tests := []struct{ src, want string }{
+		{src: "---\n---\na: 1\n", want: "!!null\n---\na: 1\n"},
+		{src: "---\n", want: "!!null\n"},
+		{src: "a: 1\n---\n---\nb: 2\n", want: "a: 1\n---\n!!null\n---\nb: 2\n"},
+		{src: "{a}\n", want: "{a: !!null ''}\n"},
+		{src: "{? : a}\n", want: "{!!null '': a}\n"},
+		{src: "a:\n", want: "a: !!null\n"},
+		{src: "--- ''\n---\na: 1\n", want: "''\n---\na: 1\n"},
+		{src: "--- ~\n---\na: 1\n", want: "~\n---\na: 1\n"},
+		{src: "{a: ''}\n", want: "{a: ''}\n"},
 	}
-	for name, src := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			docs, why := parseStream([]byte(src))
-			require.Empty(t, why)
-			want := scalarValues(t, docs)
-			written := docs[0].Content[0].Content[1]
-			wantStyle, wantTag := written.Style&^yaml.FoldedStyle|yaml.LiteralStyle, written.Tag
+	for _, tc := range tests {
+		docs, why := parseStream([]byte(tc.src))
+		require.Empty(t, why, "%q", tc.src)
 
-			out, why := encodeFaithfully(docs)
-			require.Empty(t, why, "the encoding of %q", out)
-
-			read, why := parseStream(out)
-			require.Empty(t, why)
-			assert.Equal(t, want, scalarValues(t, read), "%q encodes to %q", src, out)
-			value := read[0].Content[0].Content[1]
-			assert.Equal(t, wantStyle, value.Style, "%q encodes to %q", src, out)
-			assert.Equal(t, wantTag, value.Tag, "%q encodes to %q", src, out)
-		})
+		out, why := encodeFaithfully(docs)
+		require.Empty(t, why, "%q", tc.src)
+		assert.Equal(t, tc.want, string(out), "%q", tc.src)
 	}
 }
 
 // TestEncodeFaithfully_AnEncodingThatReadsOtherwiseIsDeclined drives the check
-// holding a re-encoding to the values it was written from. The seam writes
+// holding a re-encoding to the nodes it was written from. The seam writes
 // text that parses but reads otherwise, as no encoding of a parsed tree is
 // known to, differing from the source in one of the ways the check compares
 // alone.
@@ -1599,6 +1436,7 @@ func TestEncodeFaithfully_AnEncodingThatReadsOtherwiseIsDeclined(t *testing.T) {
 	}{
 		{name: "another value", src: "a: 1\nb: 2\n", encoded: "a: 1\nb: 3\n"},
 		{name: "another kind", src: "a: ''\n", encoded: "a: {}\n"},
+		{name: "another tag", src: "a: ''\n", encoded: "a:\n"},
 		{name: "more entries", src: "a: 1\n", encoded: "a: 1\nb: 2\n"},
 		{name: "more documents", src: "a: 1\n", encoded: "a: 1\n---\nb: 2\n"},
 	}
@@ -1634,7 +1472,7 @@ func TestReverseMappings_APermutationThatReadsOtherwiseIsDeclined(t *testing.T) 
 func TestEncodeFaithfully_DepthBound(t *testing.T) {
 	t.Parallel()
 	deep := yamlMapping()
-	assert.Equal(t, DeclineTooDeep, restyleBlockScalars(&deep, maxReverseDepth+1))
+	assert.Equal(t, DeclineTooDeep, restyleScalars(&deep, maxReverseDepth+1))
 	assert.Equal(t, DeclineTooDeep, readsBackAsWritten(&deep, &deep, maxReverseDepth+1))
 
 	nested := &yaml.Node{Kind: yaml.ScalarNode, Value: "v"}
