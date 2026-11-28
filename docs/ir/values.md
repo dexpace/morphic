@@ -59,17 +59,21 @@ reading is shallow: the value's kind against the shape of the type, an enum's me
 value, null where the position is not nullable, whole numbers for an integer, and the bounds the
 position declares with those of the alias scalars it reaches. A value that is a reference or a
 constructor, a type holding anything, a union, an external type and an unknown type are not judged,
-and of a value written in an encoding only an enum's members, a literal's value and null are. A value
-is written in an encoding where an `Encoding` writes it: that of a scalar or a list its type reaches
-through aliases, or a position's own, as a property, a header or a parameter has, which writes its
-default as it writes its examples unless it names a `MediaType` and nothing else, as a header
-declared by `content` has. A media type alone writes the value in its format without changing what
-the type holds, so there, and where an HTTP binding writes the whole parameter through a
-`ContentType`, only the examples are judged as values written in an encoding: the default, a value of
-the type, is judged as it is at any other position. The sites are a property's, a parameter's and a
-header's default and examples, a type's own examples (a null one says the example is absent and is
-not judged), and in an operation's examples each input parameter against the type and bounds of the
-parameter it names, though not its own `Encoding`, and the error content against the error's type.
+and of a value written in an encoding only an enum's members, a literal's value and null are, until
+#2178 decides which checks an encoding excuses. A value is written in an encoding where an
+`Encoding` writes it: that of a scalar or a list its type reaches through aliases, or a position's
+own, as a property or a header has, which writes its default as it writes its examples unless it
+names a `MediaType` and nothing else, as a header declared by `content` has. A parameter's own
+`Encoding` counts only where it names a media type alone: one naming anything else, as the HTTP-date
+one the OpenAPI compiler infers for a header parameter does, leaves its values judged, since whether
+an encoding that keeps the kind excuses it is #2178's to decide. A media type alone writes the value
+in its format without changing what the type holds, so there, and where an HTTP binding writes the
+whole parameter through a `ContentType`, only the examples are judged as values written in an
+encoding: the default, a value of the type, is judged as it is at any other position. The sites are
+a property's, a parameter's and a header's default and examples, a type's own examples (a null one
+says the example is absent and is not judged), and in an operation's examples each input parameter
+against the type and bounds of the parameter it names, though not its own `Encoding`, and the error
+content against the error's type.
 
 A parameter's and a header's own examples are their value as written on the wire, which is how
 OpenAPI reads them, so a string example of a list or an object (a model or a map) is that value

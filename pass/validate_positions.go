@@ -184,19 +184,20 @@ func wholeParameters(operation *ir.Operation, whole *scratchstate.Map[ir.Paramet
 	return written
 }
 
-// operationPositions visits the positions of operation. A parameter is written
-// in an encoding where its own Encoding writes it, and serialized by a media
-// type where that Encoding names one alone or a binding's content type writes
-// it whole, as a header declared by content is.
+// operationPositions visits the positions of operation. A parameter is
+// serialized by a media type where its own Encoding names one alone or a
+// binding's content type writes it whole, as a header declared by content is.
+// Its own Encoding naming anything else leaves its values judged as an
+// unencoded parameter's are, until #2178 decides which checks an encoding
+// excuses (docs/ir/values.md#values-held-to-their-type).
 func operationPositions(positionValue *position, operation *ir.Operation, scratch *positionScratch, visit func(*position)) {
 	whole := wholeParameters(operation, &scratch.whole)
 	for i := range operation.Params {
 		pm := &operation.Params[i]
 		writing := whole[pm.ID]
-		mediaTyped := mediaTypeAlone(pm.Encoding)
 		*positionValue = position{
 			node: string(pm.ID), from: pm.Provenance, typ: pm.Type, own: pm.Constraints,
-			encoded: pm.Encoding != nil && !mediaTyped, mediaTyped: mediaTyped || writing.mediaTyped,
+			mediaTyped:    mediaTypeAlone(pm.Encoding) || writing.mediaTyped,
 			writtenShapes: writing.shapes, def: pm.Default, examples: pm.Examples,
 		}
 		visit(positionValue)
