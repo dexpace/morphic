@@ -89,7 +89,8 @@ func (w *operationWalk) plan(operation ir.Operation, place ir.OperationPlace) {
 // the innermost of groups, those enclosing it outermost first, that states
 // one, else "". A tier outside the vocabulary is taken as stated, and irverify
 // reports it (ir/unknown-stability). It reads at most every group enclosing
-// the operation, which the walk holds to [ir.MaxGroupDepth] levels.
+// the operation, which the walk holds to the levels 0 through
+// [ir.MaxGroupDepth].
 func (w *operationWalk) stability(operation ir.Operation, groups []ir.OperationGroup) ir.Stability {
 	if operation.Stability != ir.StabilityUnstated {
 		return operation.Stability
@@ -107,11 +108,14 @@ func (w *operationWalk) stability(operation ir.Operation, groups []ir.OperationG
 // an empty list included, else none for an operation the API sends, which
 // inherits no requirement (docs/ir/auth.md#inbound-operations), else
 // service's. Each keeps nil apart from empty, and its options their order.
+// Its service is the one whose groups hold it, never one extending that
+// service, and Server.Auth, which a messaging target reads
+// (docs/emitters/operations/client.md), is not read.
 func authOptions(operation ir.Operation, service ir.Service) []AuthOption {
 	switch {
 	case operation.Auth != nil:
 		return asOptions(operation.Auth)
-	case inbound(operation):
+	case operation.Bindings.Inbound():
 		return nil
 	default:
 		return asOptions(service.Auth)
@@ -131,10 +135,4 @@ func asOptions(requirements []ir.AuthRequirement) []AuthOption {
 		}
 	}
 	return options
-}
-
-// inbound reports whether a binding of operation marks it a request the API
-// sends: a webhook or a callback.
-func inbound(operation ir.Operation) bool {
-	return slices.ContainsFunc(operation.Bindings.HTTP, func(binding ir.HTTPBinding) bool { return binding.Inbound != "" })
 }
