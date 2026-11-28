@@ -111,8 +111,23 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   noun another package uses otherwise is renamed, not explained in a doc comment.
 - **Why.** Names that needed their comments, and comments that needed other coined names, left
   the code and the compiled IR unreadable to their owner (#2130).
-- **Probe.** This lists the one-letter parameters a change adds:
+- **Probe.** This lists a change's one-letter parameters, and
+  `references/design-rules.md#read-each-declared-name` reads the rest:
   `git diff origin/main -- '*.go' | grep -nE '^\+func [A-Za-z][^(]*\((.*[, ])?[a-z] [*A-Za-z.]+[,)]'`.
+
+## Read each name a change declares against what it holds
+`read-each-declared-name`
+
+- **Rule.** Read every name the diff declares, a local, a field, a test helper or a function,
+  beside the value it holds where it is used: a word naming another thing passes every grep, as
+  `encoded` did for a decoded value. Rename it by
+  `references/design-rules.md#name-what-it-holds`.
+- **Why.** `whole`, `encoded`, `unencoded` and `invalid` passed the one-letter grep and a first
+  reading of the type table's packages, found a round later (#2240 at 006e245ff); a test field
+  `tableRow` held a kind (#2241 at ac199cb0b).
+- **Probe.** This lists each declaration and assignment to read, a struct field by the lines
+  reading it:
+  `git diff origin/main -U0 -- '*.go' | grep -nE '^\+.*(:= |\b(var|const|func|type) )'`.
 
 ## Place shared code by its second user
 `second-user`

@@ -13,6 +13,8 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    each command an edited rule prescribes
    (`references/claims-and-process.md#run-prescribed-commands`), with the flags a neighbouring rule
    passes the same tool (`references/claims-and-process.md#command-keeps-its-neighbours-flags`).
+   Run each guarantee a doc comment states on the input that breaks it
+   (`.claude/skills/morphic-verifying-changes/references/claims.md#doc-names-every-outcome`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text, its `--pushed` naming the head the setup fetched, or `origin/<branch>` before the PR
    exists
