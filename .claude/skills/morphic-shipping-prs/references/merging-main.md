@@ -201,9 +201,13 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** Build a trial merge by SHA, without copying the merge into a fresh repository:
   `t=$(git merge-tree --write-tree <head> <pr head>) && git worktree add --detach <dir> "$(git commit-tree "$t" -p <head> -p <pr head> -m trial)"`,
-  which a conflict stops.
+  which a conflict stops. A pair that must be read together though it conflicts is built from the
+  caller's directory,
+  `git worktree add --detach <dir> <head> && git -C <dir> merge "$(git rev-parse <pr head>)"`,
+  then resolved and committed in `<dir>`.
 - **Why.** Copying 14 merges out by `git archive`, `git init` and `git add -A` took 47 minutes; this
-  form trial-merged all 27 open PRs in about a minute (#1532, #1542).
+  form trial-merged all 27 open PRs in about a minute (#1532, #1542). Two of a plan's pull requests
+  that conflicted had no tree to be reviewed on together (#2297).
 
 ## Confirm a trial merge by both its parents before reading a result
 `trial-merge-happened`

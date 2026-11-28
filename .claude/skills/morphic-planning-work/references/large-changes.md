@@ -172,13 +172,11 @@ ones.
   in another merge order (#1809, #1810, #1813), and the merge train found more (#1840 with #1819,
   #1846 with #1833).
 - **Probe.** For each pair of the plan's open pull requests reading or writing one fact, the
-  angles run on a worktree of their trial merge, built by
-  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-by-commit-tree` and
-  confirmed by `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`.
-  A pair that conflicts takes `main` into each first
-  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-main-first`); one still
-  conflicting is merged by `git worktree add --detach <dir> <head> && git -C <dir> merge <other>`,
-  resolved and reviewed there, or becomes one pull request.
+  angles run on a worktree of their trial merge, confirmed by
+  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened` and built by
+  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-by-commit-tree`: in
+  its conflict form for a pair still conflicting once each has taken `main`
+  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-main-first`).
 
 ## Assign no version ahead of the merge
 `no-version-ahead-of-the-merge`
