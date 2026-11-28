@@ -78,14 +78,13 @@ the tree the rule exists to prevent.
   the names of one file 1,293 times in the second, as it parts `q` with U+0323 and U+0307 from the
   two reversed. Upper-casing comes before folding because `cases.Fold` alone, Unicode's canonical
   caseless match over these tables, split them 86 times in the first and 1,252 in the second, each
-  Cherokee letter against its other case among them, as that function maps each to the other, and a
-  letter newer than its tables; Go's own tables upper-case both alike first. A final NFD, as the
-  canonical caseless match ends with, changed no answer in either, so it is not taken, and a fold of
-  ASCII letters alone split them 14,694 and 55,123 times. `strings.EqualFold` parts `Straße` from
-  `Strasse` and a composed `é` from a decomposed one, which APFS makes one path (#1729). That the
-  fold joins every pair NTFS makes one path is an assumption, not a measurement: NTFS compares
-  names through an upper-case table each volume stores, which no run here read, and the same two
-  sweeps on an NTFS volume would settle it.
+  Cherokee letter against its other case among them, as that function maps each to the other; Go's
+  own tables upper-case both alike first. A final NFD, as the canonical caseless match ends with,
+  changed no answer in either, so it is not taken, and a fold of ASCII letters alone split them
+  14,694 and 55,123 times. `strings.EqualFold` parts `Straße` from `Strasse` and a composed `é` from
+  a decomposed one, which APFS makes one path (#1729). That the fold joins every pair NTFS makes one
+  path is an assumption, not a measurement: NTFS compares names through an upper-case table each
+  volume stores, which no run here read, and the same two sweeps on an NTFS volume would settle it.
   A file system that tells case apart joins fewer. Unicode's stability policies keep the case
   folding and decomposition of a string of assigned characters across its versions, so a toolchain
   moving Unicode refolds only a name holding a character the older one left unassigned. So the fold
