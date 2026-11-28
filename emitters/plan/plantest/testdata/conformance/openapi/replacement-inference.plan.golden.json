@@ -1,4 +1,14 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1old~1zones/get": {},
+    "operation/openapi/paths/~1old~1zones/post": {},
+    "operation/openapi/paths/~1things/get": {},
+    "operation/openapi/paths/~1v0~1zones/get": {},
+    "operation/openapi/paths/~1v0~1zones/post": {},
+    "operation/openapi/paths/~1v1~1zones/get": {},
+    "operation/openapi/paths/~1v1~1zones/post": {},
+    "operation/openapi/paths/~1v2~1zones/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1things/get/responses/200/content/application~1json/schema": {
       "flattened": [
@@ -49,6 +59,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

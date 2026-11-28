@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1assets/post": {},
+    "operation/openapi/paths/~1mixed/post": {},
+    "operation/openapi/paths/~1snippet/put": {}
+  },
   "types": {
     "type/anonymous/paths/~1assets/post/requestBody/content/multipart~1form-data/schema": {},
     "type/anonymous/paths/~1mixed/post/requestBody/content/multipart~1form-data/schema": {
@@ -22,6 +27,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

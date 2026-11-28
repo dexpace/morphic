@@ -66,6 +66,7 @@
     "type/primitive/uint8": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1events/get": {},
+    "operation/openapi/paths/~1events~1{id}/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/Event": {
       "flattened": [
@@ -8,6 +12,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

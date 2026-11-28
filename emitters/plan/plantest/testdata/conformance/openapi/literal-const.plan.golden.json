@@ -4,6 +4,7 @@
     "type/openapi/components/schemas/Version": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,5 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1bearer#apiKey/get": {},
+    "operation/openapi/paths/~1bearer#oauth2/get": {},
+    "operation/openapi/paths/~1bearer/get": {},
+    "operation/openapi/paths/~1other/get": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

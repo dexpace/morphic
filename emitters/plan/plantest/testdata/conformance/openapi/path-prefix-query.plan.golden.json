@@ -1,5 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1?probe=1/get": {},
+    "operation/openapi/paths/~1users/get": {},
+    "operation/openapi/paths/~1users?role=admin/get": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

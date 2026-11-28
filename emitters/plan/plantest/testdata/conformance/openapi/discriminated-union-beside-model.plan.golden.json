@@ -70,6 +70,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1names~1{name}/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Failure/properties/composed": {
       "flattened": [
@@ -34,6 +37,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

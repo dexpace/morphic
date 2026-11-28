@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1gadgets/post": {},
+    "operation/openapi/paths/~1widgets/get": {},
+    "operation/openapi/paths/~1widgets/post": {}
+  },
   "types": {
     "type/anonymous/components/responses/Envelope/content/application~1json/schema": {
       "flattened": [
@@ -13,6 +18,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

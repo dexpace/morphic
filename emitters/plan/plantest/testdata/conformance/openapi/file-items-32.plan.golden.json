@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1attachments/get": {},
+    "operation/openapi/paths/~1photos/get": {},
+    "operation/openapi/paths/~1thumbnails/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema": {
       "alias": "type/primitive/any"
@@ -8,6 +13,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

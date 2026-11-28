@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1widgets/get": {}
+  },
   "types": {
     "type/anonymous/components/mediaTypes//itemSchema": {
       "flattened": [
@@ -176,6 +179,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

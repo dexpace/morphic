@@ -4,6 +4,7 @@
     "type/openapi/components/schemas/Pinned": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

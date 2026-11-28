@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1files~1{name}/put": {}
+  },
   "types": {
     "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Retry-After/schema": {},
     "type/anonymous/paths/~1files~1{name}/put/responses/204/headers/Sunset/schema": {},
@@ -8,6 +11,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

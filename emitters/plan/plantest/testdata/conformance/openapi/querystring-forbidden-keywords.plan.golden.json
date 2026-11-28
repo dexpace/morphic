@@ -1,9 +1,14 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1a/get": {},
+    "operation/openapi/paths/~1b/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1a/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {},
     "type/anonymous/paths/~1b/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

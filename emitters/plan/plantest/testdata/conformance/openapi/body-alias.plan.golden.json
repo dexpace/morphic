@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1dogs/get": {},
+    "operation/openapi/paths/~1pets/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Page/properties/result": {},
     "type/openapi/components/schemas/Dogs": {
@@ -22,6 +26,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

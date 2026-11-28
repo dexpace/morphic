@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1search/delete": {},
+    "operation/openapi/paths/~1search/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1search/get/parameters/1/schema": {},
     "type/anonymous/paths/~1search/get/parameters/4/content/application~1json/schema": {},
@@ -6,6 +10,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

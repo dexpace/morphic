@@ -1,9 +1,13 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1ping/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/UserId": {},
     "type/primitive/uuid": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

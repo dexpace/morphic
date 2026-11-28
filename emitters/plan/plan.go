@@ -17,11 +17,15 @@ import (
 const codeUnencodable = "emitters/plan/unencodable"
 
 // Plan is what [Build] derives from one document under one policy
-// (docs/emitters/plan/overview.md). Every key is one of the document's stable
-// IDs. A plan points into the document it was built from and copies none of
+// (docs/emitters/plan/overview.md). Every key naming a node is one of the
+// document's stable IDs; an Inferred map is keyed by the path of the field it
+// marks. A plan points into the document it was built from and copies none of
 // it, so it describes that document as it stood. It is safe for concurrent
 // reads: nothing writes one once Build returns.
 type Plan struct {
+	// Ops holds one entry for each operation [ir.ForEachOperation] reaches,
+	// keyed by its ID; of two sharing an ID, the first.
+	Ops map[ir.OperationID]OpPlan `json:"ops,omitempty"`
 	// Types holds one entry for each type of the document's registry.
 	Types map[ir.TypeID]TypePlan `json:"types,omitempty"`
 	// Policy is the policy Build ran under.
@@ -58,7 +62,7 @@ func Build(doc *ir.Document, _ *irfacts.DocumentFacts, policy Policy) (*Plan, []
 	if doc == nil {
 		doc = &ir.Document{}
 	}
-	built := &Plan{Types: typePlans(doc.Types, policy), Policy: policy}
+	built := &Plan{Ops: operationPlans(doc, policy), Types: typePlans(doc.Types, policy), Policy: policy}
 
 	version, err := versionOf(doc, policy)
 	if err != nil {

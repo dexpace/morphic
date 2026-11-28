@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1drafts/post": {},
+    "operation/openapi/paths/~1orders/post": {},
+    "operation/openapi/paths/~1orders~1{id}/put": {}
+  },
   "types": {
     "type/anonymous/components/requestBodies/OrderBody/content/application~1json/schema": {
       "flattened": [
@@ -13,6 +18,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

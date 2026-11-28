@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1codes/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/CodeIndex/additionalProperties": {},
     "type/anonymous/components/schemas/Codes/items": {},
@@ -9,6 +12,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

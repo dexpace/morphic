@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1things/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Distributed/oneOf/1": {
       "flattened": [
@@ -68,6 +71,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

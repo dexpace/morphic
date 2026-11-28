@@ -1,4 +1,10 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1audit/post": {},
+    "operation/openapi/paths/~1orders/post": {},
+    "operation/openapi/paths/~1orders~1{orderId}/get": {},
+    "operation/openapi/paths/~1orders~1{orderId}/put": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Order/properties/tags": {},
     "type/openapi/components/schemas/Conflict": {
@@ -27,6 +33,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

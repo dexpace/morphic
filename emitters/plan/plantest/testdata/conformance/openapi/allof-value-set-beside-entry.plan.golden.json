@@ -23,6 +23,7 @@
     "type/openapi/components/schemas/Target": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

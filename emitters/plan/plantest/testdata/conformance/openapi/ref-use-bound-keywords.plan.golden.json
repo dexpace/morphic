@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1meetings/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/Filter": {
       "flattened": [
@@ -21,6 +24,7 @@
     "type/primitive/bool": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

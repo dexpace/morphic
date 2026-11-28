@@ -1,4 +1,17 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1widgets~1{widget.id}/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/oauth2.client"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "types": {
     "type/anonymous/components/schemas/com.example.Widget/properties/rollout.state": {},
     "type/openapi/components/schemas/com.example.Widget": {
@@ -12,6 +25,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1events/get": {}
+  },
   "types": {
     "type/anonymous/paths/~1events/get/responses/200/content/text~1event-stream/schema": {
       "flattened": [
@@ -8,6 +11,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

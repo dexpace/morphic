@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1widgets/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/Err": {
       "flattened": [
@@ -15,6 +18,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

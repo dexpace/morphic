@@ -1,5 +1,24 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1absent/get": {
+      "auth": [
+        {}
+      ]
+    },
+    "operation/openapi/paths/~1required/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKey"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1render/post": {},
+    "operation/openapi/paths/~1upload/post": {},
+    "operation/openapi/paths/~1value/put": {}
+  },
   "types": {
     "type/anonymous/paths/~1render/post/responses/200/content/image~1png/schema": {
       "alias": "type/primitive/string"
@@ -29,6 +34,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

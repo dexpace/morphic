@@ -1,4 +1,10 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1gadgets/get": {},
+    "operation/openapi/paths/~1orders/post": {},
+    "operation/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post": {},
+    "operation/openapi/paths/~1widgets/get": {}
+  },
   "types": {
     "type/anonymous/components/headers/RateUnit/schema": {},
     "type/anonymous/components/parameters/Sort/schema": {},
@@ -21,6 +27,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

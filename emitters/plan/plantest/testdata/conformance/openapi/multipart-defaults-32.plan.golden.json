@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1stream/post": {},
+    "operation/openapi/paths/~1upload/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1stream/post/requestBody/content/multipart~1mixed/itemSchema": {
       "flattened": [
@@ -23,6 +27,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

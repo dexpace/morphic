@@ -1,4 +1,8 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1form/post": {},
+    "operation/openapi/paths/~1upload/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/schema": {
       "flattened": [
@@ -28,6 +32,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

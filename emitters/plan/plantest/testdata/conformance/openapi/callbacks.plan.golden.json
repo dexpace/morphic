@@ -1,5 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1subscribe/post": {},
+    "operation/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post": {},
+    "operation/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

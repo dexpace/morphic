@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1item/get": {},
+    "operation/openapi/paths/~1ping/get": {},
+    "operation/openapi/paths/~1purge/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1purge/post/responses/default/content/application~1json/schema": {
       "flattened": [
@@ -19,6 +24,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

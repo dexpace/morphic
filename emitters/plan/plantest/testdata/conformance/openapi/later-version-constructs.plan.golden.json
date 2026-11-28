@@ -1,4 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1books/additionalOperations/PURGE": {},
+    "operation/openapi/paths/~1books/get": {},
+    "operation/openapi/paths/~1books/post": {},
+    "operation/openapi/paths/~1books/query": {},
+    "operation/openapi/webhooks/bookAdded/post": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Edition/properties/number": {},
     "type/anonymous/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
@@ -43,6 +50,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

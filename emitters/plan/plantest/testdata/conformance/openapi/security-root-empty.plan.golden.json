@@ -1,5 +1,22 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1guarded/get": {
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/bearerAuth"
+            }
+          ]
+        }
+      ]
+    },
+    "operation/openapi/paths/~1open/get": {
+      "auth": []
+    }
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

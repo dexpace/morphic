@@ -1,8 +1,24 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1payments/get": {},
+    "operation/openapi/paths/~1payments/post": {
+      "effects": {
+        "idempotent": true
+      }
+    },
+    "operation/openapi/paths/~1payments~1{id}/delete": {},
+    "operation/openapi/paths/~1payments~1{id}/patch": {},
+    "operation/openapi/paths/~1payments~1{id}/put": {
+      "effects": {
+        "idempotent": true
+      }
+    }
+  },
   "types": {
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

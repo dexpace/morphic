@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1old/get": {}
+  },
   "types": {
     "type/openapi/components/schemas/OldModel": {
       "flattened": [
@@ -11,6 +14,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1archive/post": {},
+    "operation/openapi/paths/~1drafts/post": {},
+    "operation/openapi/paths/~1drafts/put": {},
+    "operation/openapi/paths/~1orders/post": {},
+    "operation/openapi/paths/~1orders/put": {}
+  },
   "types": {
     "type/anonymous/components/parameters/Page/schema": {
       "flattened": [
@@ -24,6 +31,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

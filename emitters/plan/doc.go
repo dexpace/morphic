@@ -10,7 +10,7 @@
 // The plan classifies and each target decides
 // (docs/emitters/plan/plan-or-refine.md): it holds no casing, no reserved
 // word, no target type and no runtime policy, and copies no fact the document
-// states outright. Every key is one of the document's stable IDs.
+// states outright. A key naming a node is one of the document's stable IDs.
 //
 // It reports its own findings under emitters/plan/ codes, once for every
 // target.

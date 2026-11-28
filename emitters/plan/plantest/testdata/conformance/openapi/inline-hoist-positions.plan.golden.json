@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1orders/post": {},
+    "operation/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post": {},
+    "operation/openapi/webhooks/onShipped/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post/requestBody/content/application~1json/schema": {
       "flattened": [
@@ -43,6 +48,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

@@ -1,4 +1,11 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1events/get": {},
+    "operation/openapi/paths/~1jobs/get": {},
+    "operation/openapi/paths/~1keys/get": {},
+    "operation/openapi/paths/~1logs/get": {},
+    "operation/openapi/paths/~1zones/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Collection/properties/errors": {},
     "type/anonymous/components/schemas/Collection/properties/messages": {},
@@ -70,6 +77,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

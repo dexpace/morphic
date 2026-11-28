@@ -1,5 +1,43 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1deprecated/get": {},
+    "operation/openapi/paths/~1deprecated/patch": {},
+    "operation/openapi/paths/~1deprecated/post": {},
+    "operation/openapi/paths/~1deprecated/put": {
+      "stability": "beta"
+    },
+    "operation/openapi/paths/~1pathitem/get": {
+      "stability": "beta"
+    },
+    "operation/openapi/paths/~1sources/get": {
+      "stability": "stable"
+    },
+    "operation/openapi/paths/~1sources/put": {
+      "stability": "beta"
+    },
+    "operation/openapi/paths/~1tiers/delete": {
+      "stability": "stable"
+    },
+    "operation/openapi/paths/~1tiers/get": {
+      "stability": "alpha"
+    },
+    "operation/openapi/paths/~1tiers/patch": {
+      "stability": "stable"
+    },
+    "operation/openapi/paths/~1tiers/post": {
+      "stability": "beta"
+    },
+    "operation/openapi/paths/~1tiers/put": {
+      "stability": "beta"
+    },
+    "operation/openapi/paths/~1unread/delete": {},
+    "operation/openapi/paths/~1unread/get": {},
+    "operation/openapi/paths/~1unread/patch": {},
+    "operation/openapi/paths/~1unread/post": {},
+    "operation/openapi/paths/~1unread/put": {}
+  },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

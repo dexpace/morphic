@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1parts/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema": {},
     "type/anonymous/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items": {
@@ -46,6 +49,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

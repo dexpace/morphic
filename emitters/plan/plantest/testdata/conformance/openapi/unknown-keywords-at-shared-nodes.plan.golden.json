@@ -1,4 +1,7 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1a/get": {}
+  },
   "types": {
     "type/anonymous/components/schemas/Items/items": {
       "alias": "type/primitive/string"
@@ -27,6 +30,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

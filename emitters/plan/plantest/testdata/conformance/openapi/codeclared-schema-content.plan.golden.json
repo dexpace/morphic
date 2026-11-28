@@ -1,8 +1,12 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1x/get": {}
+  },
   "types": {
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

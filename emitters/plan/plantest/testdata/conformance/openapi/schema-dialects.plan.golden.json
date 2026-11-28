@@ -16,6 +16,7 @@
     "type/primitive/integer": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

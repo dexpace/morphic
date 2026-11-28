@@ -1,4 +1,9 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1widgets/get": {},
+    "operation/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post": {},
+    "operation/openapi/paths/~1widgets/post": {}
+  },
   "types": {
     "type/anonymous/paths/~1widgets/post/requestBody/content/multipart~1form-data/schema": {
       "flattened": [
@@ -21,6 +26,7 @@
     "type/primitive/string": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }

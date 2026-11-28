@@ -90,6 +90,8 @@ var walkCallers = map[string]walkCaller{
 	},
 	"engine/report.keptAtOrBelow": {answer: "reads the stop"},
 
+	"emitters/plan.operationPlans": {answer: validateReports},
+
 	"compilers/openapi/internal/promotion.UnreadExtensions": {
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
 	},
@@ -273,7 +275,7 @@ func TestWalks_EveryCallerAnswersForAStop(t *testing.T) {
 	require.NoError(t, err)
 	ir := irDecls(t, pkgs)
 	walks, queries := walkNames(ir), collectorQueries(ir)
-	require.Equal(t, []string{"ForEachGroup", "ForEachOperation", "TypeEdges", "WalkValues", "WalkValuesContext"}, walks,
+	require.Equal(t, []string{"ForEachGroup", "ForEachOperation", "ForEachOperationAt", "TypeEdges", "WalkValues", "WalkValuesContext"}, walks,
 		"the walks ir offers; a new one is held here once its callers are")
 	require.NotEmpty(t, queries, "ir's collectors answer questions")
 

@@ -1,9 +1,14 @@
 {
+  "ops": {
+    "operation/openapi/paths/~1events/get": {},
+    "operation/openapi/paths/~1events/post": {}
+  },
   "types": {
     "type/anonymous/components/responses/NotFound/content/application~1json/schema": {},
     "type/primitive/integer": {}
   },
   "policy": {
-    "strictExclusive": false
+    "strictExclusive": false,
+    "protocolEffects": false
   }
 }
