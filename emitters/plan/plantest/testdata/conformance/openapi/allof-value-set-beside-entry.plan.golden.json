@@ -23,6 +23,8 @@
     "type/openapi/components/schemas/Target": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

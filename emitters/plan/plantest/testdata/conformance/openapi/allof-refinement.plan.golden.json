@@ -10,10 +10,10 @@
     "type/anonymous/components/schemas/Zone/properties/level": {},
     "type/anonymous/components/schemas/Zone/properties/mode": {},
     "type/anonymous/components/schemas/Zone/properties/owner": {
+      "alias": "type/openapi/components/schemas/Owner",
       "flattened": [
         "property/openapi/components/schemas/Owner/properties/id"
-      ],
-      "alias": "type/openapi/components/schemas/Owner"
+      ]
     },
     "type/anonymous/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema": {
       "alias": "type/openapi/components/schemas/Blob"
@@ -65,6 +65,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

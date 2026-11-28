@@ -5,6 +5,8 @@
     "type/openapi/components/schemas/N": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

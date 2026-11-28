@@ -115,6 +115,7 @@ func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 			t.Parallel()
 			union := tt.union
 			union.ID = "type/union"
+			union.Closed = true
 			doc := irtest.DocOf(&union)
 
 			lenient := build(t, doc, plan.Policy{}).Types[union.ID]
@@ -130,15 +131,16 @@ func TestBuild_ClassifiesAUnionsWireShape(t *testing.T) {
 // TestBuild_EveryKindHasAPlan is the dispatch's switch-completeness test
 // (T-1): derives says what Build reads off each kind, and a kind ir declares
 // that it does not list fails here until the dispatch and this table say what
-// the plan derives of it.
+// the plan derives of it. The zero union and enum are open, Closed being
+// false.
 func TestBuild_EveryKindHasAPlan(t *testing.T) {
 	t.Parallel()
 	derives := map[ir.TypeKind]plan.TypePlan{
 		ir.KindPrimitive: {},
 		ir.KindScalar:    {},
 		ir.KindModel:     {Flattened: []ir.PropertyID{"type/model/id"}},
-		ir.KindUnion:     {Union: plan.UnionAnyOf},
-		ir.KindEnum:      {},
+		ir.KindUnion:     {Union: plan.UnionAnyOf, Open: true},
+		ir.KindEnum:      {Open: true},
 		ir.KindList:      {},
 		ir.KindMap:       {},
 		ir.KindTuple:     {},
@@ -174,18 +176,77 @@ func TestBuild_EveryKindHasAPlan(t *testing.T) {
 	}
 }
 
+// TestBuild_OpensWhatThePolicyOpens holds Open on every kind it reads, under
+// each pair of OpenUnions and OpenEnums (T-22, T-36): what the IR declares
+// open is open under any policy, each switch opens only its own kinds, and
+// neither opens what a request alone carries, an enum declaring a fallback or
+// one with no member.
+func TestBuild_OpensWhatThePolicyOpens(t *testing.T) {
+	t.Parallel()
+	policies := [...]plan.Policy{{}, {OpenUnions: true}, {OpenEnums: true}, {OpenUnions: true, OpenEnums: true}}
+	member := []ir.EnumMember{{ID: "enum-member/subject/small", Name: ir.NamingFor("small")}}
+	tests := []struct {
+		name string
+		td   ir.TypeDef
+		// want is Open under each of policies, in order.
+		want [len(policies)]bool
+	}{
+		{"a closed union", &ir.Union{Closed: true}, [...]bool{false, true, false, true}},
+		{"an open union", &ir.Union{}, [...]bool{true, true, true, true}},
+		{"a closed union only a request carries", &ir.Union{Closed: true, InputOnly: true},
+			[...]bool{false, false, false, false}},
+		{"an open union only a request carries", &ir.Union{InputOnly: true}, [...]bool{true, true, true, true}},
+		{"a model holding a discriminator", irtest.ModelOf("", func(m *ir.Model) {
+			m.Discriminator = &ir.Discriminator{PropertyName: "kind"}
+		}), [...]bool{false, true, false, true}},
+		{"an abstract model", irtest.ModelOf("", func(m *ir.Model) { m.Abstract = true }),
+			[...]bool{false, true, false, true}},
+		{"a base only a request carries", irtest.ModelOf("", func(m *ir.Model) {
+			m.Abstract, m.InputOnly = true, true
+			m.Discriminator = &ir.Discriminator{PropertyName: "kind"}
+		}), [...]bool{false, false, false, false}},
+		{"a model that is no base", irtest.ModelOf("", nil), [...]bool{false, false, false, false}},
+		{"a closed enum", &ir.Enum{Closed: true, Members: member}, [...]bool{false, false, true, true}},
+		{"an open enum", &ir.Enum{Members: member}, [...]bool{true, true, true, true}},
+		{"a closed enum declaring a fallback", &ir.Enum{Closed: true, Members: member, FallbackMember: "small"},
+			[...]bool{false, false, false, false}},
+		{"a closed enum with no member", &ir.Enum{Closed: true}, [...]bool{false, false, false, false}},
+		{"a closed flags enum with no member", &ir.Enum{Closed: true, Flags: true},
+			[...]bool{false, false, false, false}},
+		{"an open enum with no member", &ir.Enum{}, [...]bool{true, true, true, true}},
+		{"a scalar", irtest.ScalarOf("", "type/string"), [...]bool{false, false, false, false}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.td.Common().ID = "type/subject"
+			doc := irtest.DocOf(tt.td, &ir.Primitive{ID: "type/string", PrimitiveKind: ir.PrimitiveString})
+
+			var got [len(policies)]bool
+			for i, pp := range policies {
+				got[i] = build(t, doc, pp).Types["type/subject"].Open
+			}
+
+			assert.Equal(t, tt.want, got, "Open under %+v", policies)
+		})
+	}
+}
+
 func TestBuild_ANilEntryPlansAsTheZeroTypePlan(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"type/untyped": nil,
 		"type/model":   (*ir.Model)(nil),
 		"type/union":   (*ir.Union)(nil),
+		"type/enum":    (*ir.Enum)(nil),
 		"type/scalar":  (*ir.Scalar)(nil),
 	}}
 
-	built := build(t, doc, plan.Policy{StrictExclusive: true})
+	built := build(t, doc, plan.Policy{OpenUnions: true, OpenEnums: true, StrictExclusive: true})
 
-	want := map[ir.TypeID]plan.TypePlan{"type/untyped": {}, "type/model": {}, "type/union": {}, "type/scalar": {}}
+	want := map[ir.TypeID]plan.TypePlan{
+		"type/untyped": {}, "type/model": {}, "type/union": {}, "type/enum": {}, "type/scalar": {},
+	}
 	assert.Empty(t, cmp.Diff(want, built.Types))
 }
 

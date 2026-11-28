@@ -1,34 +1,34 @@
 {
   "types": {
     "type/anonymous/components/schemas/Implied/oneOf/0": {
+      "alias": "type/openapi/components/schemas/Cat",
       "flattened": [
         "property/openapi/components/schemas/Cat/properties/kind"
-      ],
-      "alias": "type/openapi/components/schemas/Cat"
+      ]
     },
     "type/anonymous/components/schemas/Pet/oneOf/0": {
+      "alias": "type/openapi/components/schemas/Cat",
       "flattened": [
         "property/openapi/components/schemas/Cat/properties/kind"
-      ],
-      "alias": "type/openapi/components/schemas/Cat"
+      ]
     },
     "type/anonymous/components/schemas/Twins/oneOf/0": {
+      "alias": "type/openapi/components/schemas/Cat",
       "flattened": [
         "property/openapi/components/schemas/Cat/properties/kind"
-      ],
-      "alias": "type/openapi/components/schemas/Cat"
+      ]
     },
     "type/anonymous/components/schemas/Twins/oneOf/1": {
+      "alias": "type/openapi/components/schemas/Cat",
       "flattened": [
         "property/openapi/components/schemas/Cat/properties/kind"
-      ],
-      "alias": "type/openapi/components/schemas/Cat"
+      ]
     },
     "type/anonymous/components/schemas/Unknown/oneOf/0": {
+      "alias": "type/openapi/components/schemas/Cat",
       "flattened": [
         "property/openapi/components/schemas/Cat/properties/kind"
-      ],
-      "alias": "type/openapi/components/schemas/Cat"
+      ]
     },
     "type/openapi/components/schemas/Cat": {
       "flattened": [
@@ -55,6 +55,8 @@
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

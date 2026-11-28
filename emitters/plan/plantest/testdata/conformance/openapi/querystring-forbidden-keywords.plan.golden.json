@@ -4,6 +4,8 @@
     "type/anonymous/paths/~1b/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

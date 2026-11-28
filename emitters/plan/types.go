@@ -11,6 +11,17 @@ import "github.com/dexpace/morphic/ir"
 // Implements and Mixins distinct beside the flattening held here. Each field
 // is exposed by an SDK and by the docs, which must agree on it.
 type TypePlan struct {
+	// Deprecated maps each flattened member a declaration deprecates, by the
+	// declaration it takes, to that deprecation: an overridden declaration's
+	// where the taken one states none.
+	Deprecated map[ir.PropertyID]*ir.Deprecation `json:"deprecated,omitempty"`
+	// Union is a union's wire shape, read off its Exclusive, WireTagged and
+	// Discriminator together; "" = not a union.
+	Union UnionShape `json:"union,omitempty"`
+	// Alias is the type every reference to this one is emitted as, this one
+	// emitting nothing: the end of a decorator's Base chain
+	// (docs/emitters/refine/decorators.md); "" = itself.
+	Alias ir.TypeID `json:"alias,omitempty"`
 	// Flattened are a model's members across its composition, each the
 	// declaration it takes, in layout order (ir.FlattenedProperties).
 	Flattened []ir.PropertyID `json:"flattened,omitempty"`
@@ -23,27 +34,23 @@ type TypePlan struct {
 	// Redacted are the flattened members a value is redacted at: each with a
 	// declaration that is Secret or of a sensitive type.
 	Redacted []ir.PropertyID `json:"redacted,omitempty"`
-	// Deprecated maps each flattened member a declaration deprecates, by the
-	// declaration it takes, to that deprecation: an overridden declaration's
-	// where the taken one states none.
-	Deprecated map[ir.PropertyID]*ir.Deprecation `json:"deprecated,omitempty"`
-	// Sensitive reports that the type, or one its Base chain reaches, is
-	// Sensitive.
-	Sensitive bool `json:"sensitive,omitzero"`
 	// Unflattened are a model's composition entries that name no model, which
 	// Flattened cannot hold, in walk order.
 	Unflattened []ir.TypeID `json:"unflattened,omitempty"`
-	// Union is a union's wire shape, read off its Exclusive, WireTagged and
-	// Discriminator together; "" = not a union.
-	Union UnionShape `json:"union,omitempty"`
+	// Sensitive reports that the type, or one its Base chain reaches, is
+	// Sensitive.
+	Sensitive bool `json:"sensitive,omitzero"`
+	// Open reports a union, polymorphic base or enum that keeps a value no
+	// variant or member recognizes rather than refusing it: each the IR
+	// declares open, and each [Policy.OpenUnions] or [Policy.OpenEnums] opens
+	// (docs/emitters/plan/policy.md). A model narrowing a union is not read
+	// yet, landing with TypePlan.Composed, and an Open the policy sets is not
+	// yet marked Inferred, landing with TypePlan.Inferred.
+	Open bool `json:"open,omitzero"`
 	// Strict reports a one_of union that refuses a value two of its variants
 	// admit unless its constraints single one out, as [Policy.StrictExclusive]
 	// asks.
 	Strict bool `json:"strict,omitzero"`
-	// Alias is the type every reference to this one is emitted as, this one
-	// emitting nothing: the end of a decorator's Base chain
-	// (docs/emitters/refine/decorators.md); "" = itself.
-	Alias ir.TypeID `json:"alias,omitempty"`
 }
 
 // UnionShape is the wire shape a union's serializer reads
@@ -77,23 +84,35 @@ func typePlans(types ir.TypeRegistry, pp Policy) map[ir.TypeID]TypePlan {
 	plans := make(map[ir.TypeID]TypePlan, len(types))
 	chains := newBaseChains(types)
 	for id, td := range types {
-		if ir.IsNilTypeDef(td) {
-			plans[id] = TypePlan{}
-			continue
-		}
-		typePlan := TypePlan{Sensitive: chains.sensitive(id), Alias: chains.alias(id)}
-		switch t := td.(type) {
-		case *ir.Model:
-			typePlan.flatten(ir.FlattenedProperties(types, id))
-		case *ir.Union:
-			typePlan.Union = unionShape(t)
-			typePlan.Strict = typePlan.Union == UnionOneOf && pp.StrictExclusive
-		default:
-			// No other kind composes members or has a wire shape to classify.
-		}
-		plans[id] = typePlan
+		plans[id] = planType(types, chains, id, td, pp)
 	}
 	return plans
+}
+
+// planType returns the plan of td, the type types holds at id, under pp: the
+// zero TypePlan for a nil one.
+func planType(types ir.TypeRegistry, chains *baseChains, id ir.TypeID, td ir.TypeDef, pp Policy) TypePlan {
+	if ir.IsNilTypeDef(td) {
+		return TypePlan{}
+	}
+	typePlan := TypePlan{Sensitive: chains.sensitive(id), Alias: chains.alias(id)}
+	switch t := td.(type) {
+	case *ir.Model:
+		typePlan.flatten(ir.FlattenedProperties(types, id))
+		// A model narrowing a union is open where its union is: not read yet,
+		// landing with Composed.
+		typePlan.Open = baseOpen(t, pp)
+	case *ir.Union:
+		typePlan.Union = unionShape(t)
+		typePlan.Open = unionOpen(t, pp)
+		typePlan.Strict = typePlan.Union == UnionOneOf && pp.StrictExclusive
+	case *ir.Enum:
+		typePlan.Open = enumOpen(t, pp)
+	default:
+		// No other kind composes members, has a wire shape to classify or
+		// keeps a value it does not list.
+	}
+	return typePlan
 }
 
 // flatten fills the fields read off flat, the flattening of p's model: its
@@ -136,4 +155,30 @@ func unionShape(union *ir.Union) UnionShape {
 	default:
 		return UnionAnyOf
 	}
+}
+
+// unionOpen reports whether union keeps a variant it does not list
+// (docs/emitters/plan/policy.md#a-union-keeps-a-variant-it-does-not-know):
+// where the IR declares it open, and under OpenUnions where no request alone
+// carries it.
+func unionOpen(union *ir.Union, pp Policy) bool {
+	return !union.Closed || pp.OpenUnions && !union.InputOnly
+}
+
+// baseOpen reports whether model, a polymorphic base where it holds a
+// Discriminator or is Abstract, keeps a subtype it does not know: only under
+// OpenUnions, where no request alone carries it, since the IR declares no base
+// open (docs/emitters/plan/policy.md#a-union-keeps-a-variant-it-does-not-know).
+func baseOpen(model *ir.Model, pp Policy) bool {
+	polymorphic := model.Discriminator != nil || model.Abstract
+	return polymorphic && pp.OpenUnions && !model.InputOnly
+}
+
+// enumOpen reports whether enum keeps a value it does not list
+// (docs/emitters/plan/policy.md#an-enum-keeps-a-value-it-does-not-list): where
+// the IR declares it open, and under OpenEnums unless it declares what such a
+// value decodes to, a FallbackMember, or lists no member, admitting no value
+// (docs/emitters/refine/enums.md#an-enum-with-no-members).
+func enumOpen(enum *ir.Enum, pp Policy) bool {
+	return !enum.Closed || pp.OpenEnums && enum.FallbackMember == "" && len(enum.Members) > 0
 }

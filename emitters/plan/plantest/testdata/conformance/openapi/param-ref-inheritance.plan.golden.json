@@ -2,18 +2,20 @@
   "types": {
     "type/openapi/components/schemas/Cursor": {},
     "type/openapi/components/schemas/Holder": {
-      "flattened": [
-        "property/openapi/components/schemas/Holder/properties/cursor",
-        "property/openapi/components/schemas/Holder/properties/override"
-      ],
       "deprecated": {
         "property/openapi/components/schemas/Holder/properties/cursor": {},
         "property/openapi/components/schemas/Holder/properties/override": {}
-      }
+      },
+      "flattened": [
+        "property/openapi/components/schemas/Holder/properties/cursor",
+        "property/openapi/components/schemas/Holder/properties/override"
+      ]
     },
     "type/primitive/string": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

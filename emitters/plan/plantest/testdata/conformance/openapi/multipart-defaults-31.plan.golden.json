@@ -81,6 +81,8 @@
     "type/primitive/uuid": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

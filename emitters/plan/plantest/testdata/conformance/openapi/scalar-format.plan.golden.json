@@ -66,6 +66,8 @@
     "type/primitive/uint8": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }

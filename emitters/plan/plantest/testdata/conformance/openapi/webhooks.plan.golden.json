@@ -3,6 +3,8 @@
     "type/anonymous/webhooks/newPet/post/requestBody/content/application~1json/schema": {}
   },
   "policy": {
+    "openUnions": false,
+    "openEnums": false,
     "strictExclusive": false
   }
 }
