@@ -1,0 +1,6 @@
+openapi: 3.0.3
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    A: {type: integer, minimum: 1, exclusiveMinimum: true, maximum: 9, exclusiveMaximum: true}

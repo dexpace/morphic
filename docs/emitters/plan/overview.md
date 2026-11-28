@@ -1,6 +1,6 @@
 # The plan layer
 
-`emitters/plan` (Layer 2, imports `ir` and `ir/irfacts` only). `Build` is pure, deterministic, and JSON-serializable
+`emitters/plan` (Layer 2, imports `ir`, `ir/irfacts` and `emitters/options` only). `Build` is pure, deterministic, and JSON-serializable
 (INV7) so it can be cached, shared out-of-process, and golden-tested independently of any language.
 Every map in the plan is keyed by a string type, since JSON names an object's members by strings
 alone. `encoding/json/v2` refuses a key that does not encode as a string, as a plain struct does, so
@@ -92,7 +92,7 @@ reads, so a spec reformatted, which moves only where its reports point, keeps it
 as does a build that words a report anew. Two plans therefore share a `Version` exactly when they
 were built from one document, `sources` and `diagnostics` aside, under one policy, which is what
 the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
-plan's policy alone: `naming.Policy` and the runtime policy shape no plan
+plan's policy alone: a target's naming tables and the runtime policy shape no plan
 ([plan or refine](plan-or-refine.md)), and the manifest records them in its configuration digest
 ([what the manifest records](../write-integrate.md#what-the-manifest-records)).
 

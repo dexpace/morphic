@@ -26,8 +26,9 @@ type Target struct {
 }
 
 type Layer struct {
-    Policy policy.Layer                              // the lowest layer of runtime policy
-    Hints  map[emitters.EntityID]emitters.ShapeHint  // the lowest layer of hints
+    Policy policy.Layer                 // the lowest layer of runtime policy
+    Hints  map[string]hints.ShapeHint   // the lowest layer of hints, by entity ID, as
+                                        // EmitterInput.Hints is keyed
 }
 
 type Tree string               // "policy" | "hint"

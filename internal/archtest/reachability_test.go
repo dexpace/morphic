@@ -29,9 +29,11 @@ const (
 		"rather than transcribing it, and the CLI sets options as text"
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); the one that ships, " +
 		"const-unions, replaces and removes types and edits nothing else"
-	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
-	factAPI     = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
-	planAPI     = "the plan docs/emitters/plan/overview.md derives for every emitter, which the engine " +
+	relationAPI  = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
+	factAPI      = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
+	typeTableAPI = "the type table every target decodes, merges and looks up (docs/emitters/contract/type-table.md), " +
+		"which the first target's types slice calls (GitHub #2141)"
+	planAPI = "the plan docs/emitters/plan/overview.md derives for every emitter, which the engine " +
 		"builds once a run hands a document to one (GitHub #2138)"
 	planCodecAPI = "how a plan encodes for the plan cache docs/emitters/plan/overview.md#the-plans-version " +
 		"keys on its Version, which is not built yet"
@@ -75,6 +77,12 @@ var apiRoots = map[string]string{
 	"ir/irfacts.DocumentFacts.Correlated":  factAPI,
 	"emitters/plan.Build":                  planAPI,
 	"emitters/plan.Plan.MarshalJSONTo":     planCodecAPI,
+	"emitters/typemap.Decode":              typeTableAPI,
+	"emitters/typemap.Merge":               typeTableAPI,
+	"emitters/typemap.Moved":               typeTableAPI,
+	"emitters/typemap.Missing":             typeTableAPI,
+	"emitters/typemap.Lookup":              typeTableAPI,
+	"emitters/typemap.LookupExternal":      typeTableAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

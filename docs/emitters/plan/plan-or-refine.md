@@ -9,8 +9,8 @@ the plan only when all three of these hold:
    any would, it is a refine decision, made by each target with its default injectable through the
    target's options ([target options](../contract/options.md)).
 2. **Closed over the document and plan policy.** It is a function of the IR and `plan.Policy`
-   alone, and reads no naming policy, runtime policy, hint or target option. Needing one of those
-   is the clearest sign the fact is per-target.
+   alone, and reads none of a target's naming data and no runtime policy, hint or target option.
+   Needing one of those is the clearest sign the fact is per-target.
 3. **Derived, and exposed by more than one artifact.** Its value is derived rather than read — a
    choice under `plan.Policy`, or a classification or walk over more than one IR fact — and more
    than one artifact generated from the document exposes it, so two of them disagreeing would be a
@@ -69,7 +69,8 @@ The procedure decided every existing field:
    pointer, a class reference — is the target's ([recursive
    references](../refine/models.md#recursive-references)).
 
-What holds the line beyond review: `emitters/plan` imports only `ir` and `ir/irfacts`, so it cannot
-read a naming or runtime policy or a target ([package layout](../packages.md)); the plan is
+What holds the line beyond review: `emitters/plan` imports only `ir`, `ir/irfacts` and
+`emitters/options`, which decodes a configuration and holds none, so it cannot read a target's
+naming data, a runtime policy or a target ([package layout](../packages.md)); the plan is
 golden-tested once, with no target in the loop; and a plan field's doc comment names what it derives
 and which artifacts expose it, which a reviewer checks against the third test.

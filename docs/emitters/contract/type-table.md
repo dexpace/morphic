@@ -10,8 +10,9 @@ package typemap
 
 // Table maps the IR's leaf types to one target's types. A composite key is a map in a map (../plan/overview.md).
 type Table struct {
-    Prims     map[ir.PrimitiveKind]map[string]Row // by primitive, then encoding name; "" = the default
-    Externals map[string]Row                      // by ir.External.Identity
+    Primitives map[ir.PrimitiveKind]map[string]Row // by primitive, then encoding name; "" = the
+                                                   // default
+    Externals  map[string]Row                      // by ir.External.Identity
 }
 
 type Row struct {
@@ -28,7 +29,47 @@ type Dependency struct {
     Module     string      // a Go module path, a Maven coordinate
     MinVersion string      // the lowest version the SDK is generated against
 }
+
+func Decode(raw []byte) (Table, error)            // strict, by options.DecodeLayer (options.md)
+func Merge(builtIn, user Table) Table             // a user row replaces the built-in row whole
+func Moved(stated, current, user Table) MovedRows // the built-in rows differing between two
+                                                  // versions that user does not replace
+func Missing(table Table) []ir.PrimitiveKind      // the kinds with no default row, sorted
+
+// MovedRows is what Moved found, each list sorted.
+type MovedRows struct {
+    Primitives []PrimitiveKey // by primitive, then encoding name
+    Externals  []string       // identities
+}
+
+type PrimitiveKey struct {
+    Primitive ir.PrimitiveKind
+    Encoding  string // "" is the primitive's default row, as the table's own key spells it
+}
+
+// Encoding is what a value travels under: the encoding's name and the primitive its WireType
+// names. The zero Encoding is none.
+type Encoding struct {
+    Name     string
+    WireType ir.PrimitiveKind
+}
+
+// Found says how Lookup found its row: under the key's own entry (Exact), under the default row of
+// the primitive the value travels as where that is not the key's primitive (TravelsAs), or under
+// the key primitive's own default row (Primitive). The zero Found is none, which a miss returns.
+type Found uint8 // Exact | TravelsAs | Primitive
+
+// Key is the key a value of primitive is typed by under encoding: a string whose encoding has a
+// name and a WireType of string is text to encode, keyed as bytes under that name.
+func Key(primitive ir.PrimitiveKind, encoding Encoding) PrimitiveKey
+func Lookup(table Table, primitive ir.PrimitiveKind, encoding Encoding) (Row, Found, bool)
+func LookupExternal(table Table, identity string) (Row, bool)
 ```
+
+The package is functions over a table a target hands it, and holds no target's rows. A table's JSON
+form names each field in lower camel case, as a hint's does (`primitives`, `minVersion`). It reads
+no plan: resolving a reference to its key through the plan's scalar chain is a refine helper's ([the
+refine layer](../refine/pipeline.md)), so a table is tested with no plan and no target.
 
 - **The key is the IR's, never a source format's.** A reference resolves to a key through the plan's
   scalar chain ([TypePlan](../plan/types.md)): the primitive at its root, and the name of the
@@ -37,19 +78,22 @@ type Dependency struct {
   none is. A compiler already gives every format it recognizes a primitive of its own — OpenAPI's
   `date-time` is `datetime_offset` — so a key spells only what the IR does not, such as
   `{string, "email"}` or `{bytes, "base64"}`, compared exactly as written, and a `string` whose
-  encoding names a `WireType`, text to encode, is keyed as `bytes`
-  ([below](#a-row-keyed-by-an-encoding)). An enum's `ValueType`
-  resolves to its primitive's default row, an `Any` node to the `any` primitive's, and an `External`
-  to its `Identity`. A property whose own encoding changes the key is typed by that key's row, not
-  by the declaration its reference names.
-- **Lookup.** `{prim, encoding}`, then the default row of the primitive the value travels as: the
-  one its encoding's `WireType` names, else `string` where `primitiveKind` is a string-spelled kind
-  ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else
-  `primitiveKind` itself. So an encoding with no row of its own stays in the IR and the SDK types
-  the value as the wire carries it, never writing it in a spelling the encoding did not name ([a row
-  keyed by an encoding](#a-row-keyed-by-an-encoding)). It is reported once per key as
-  `emitters/<target>/unmapped-encoding` at the first type in ID order that uses it, a warning where
-  that primitive is not `primitiveKind` and an info where it is. An `External` with no row takes the
+  encoding has a name and a `WireType` of `string`, text to encode, is keyed as `bytes` by `Key`
+  ([below](#a-row-keyed-by-an-encoding)). An enum's `ValueType` resolves to its primitive's default
+  row, an `Any` node to the `any` primitive's, and an `External` to its `Identity`. A property whose
+  own encoding changes the key is typed by that key's row, not by the declaration its reference
+  names.
+- **Lookup.** The key `Key` gives, then the default row of the primitive the value travels as: the
+  one its encoding's `WireType` names, else `string` where the key's primitive is a string-spelled
+  kind ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else the
+  key's primitive itself. `Lookup` says which it found: `Exact`, `TravelsAs` where the primitive the
+  value travels as is another than the key's, or `Primitive` where it is the key's, so `Found` alone
+  tells the warning below from the info. It finds none only in a table missing a primitive's default
+  row, which no built-in table is (T-17). So an encoding with no row of its own stays in the IR and
+  the SDK types the value as the wire carries it, never writing it in a spelling the encoding did
+  not name ([a row keyed by an encoding](#a-row-keyed-by-an-encoding)). It is reported once per key
+  as `emitters/<target>/unmapped-encoding` at the first type in ID order that uses it, a warning
+  where that primitive is not the key's and an info where it is. An `External` with no row takes the
   opaque strategy of [external types](../refine/scalars.md), with a warning.
 - **Built-in rows are defaults of an options version.** Every target's built-in table has a row for
   every `PrimitiveKind` at every options version, so the fallback always lands, and for every key [a
@@ -63,16 +107,26 @@ type Dependency struct {
 - **Merge.** A target's options carry the user's rows as a `typemap.Table` the shared package
   decodes strictly. A user row replaces the built-in row under the same key, a primitive's default
   included, and replaces it whole, never field by field, so a type, its codec, its imports and its
-  dependency come from one source. A row under a `PrimitiveKind` that `ir` does not declare, an
-  empty `Type`, a `Dependency` without both fields, a spelling the target cannot parse, a name
-  `Type` or `Codec` imports that `Imports` does not bind, and a key of `Imports` neither spells are
-  options errors.
-- **Where it lives.** The target's `DecodeOptions` builds the merged table — the stated version's
-  built-in rows under the user's — and refine reads it as `Ctx.Types` ([the refiner
-  contract](../refine/pipeline.md)). It is not an `EmitterInput` field beside `Policy`, because
-  every row is one target's: a Go type means nothing to Kotlin, and options already give a
-  per-target setting a strict decode, a version and defaults per version, which a separate input
-  would need all over again. The naming tables live in options for the same reason
+  dependency come from one source. So the user's rows are never decoded over the built-in table,
+  which would merge a row member by member ([target
+  options](options.md#three-kinds-of-versioned-data)): the configuration holds them alone, and
+  `Merge` lays them over the stated version's built-in table. `Decode` refuses, by the rules every
+  target shares, an unknown or repeated member; every `null`, a row's `dependency` among them,
+  since a row leaves out what it lacks; a row under a `PrimitiveKind` that `ir` does not declare;
+  an empty `Type`; and a `Dependency` without both fields. A target then checks the table it gets
+  back for its own: a spelling it cannot parse, a name `Type` or `Codec` imports that `Imports`
+  does not bind, a key of `Imports` neither spells, and on Go a `Codec`. Each is an options error.
+- **The rows a version moved.** A configuration behind the current options version keeps the
+  built-in table of the version it states. `Moved` lists the built-in rows that differ between
+  that table and the current one, a row changed, added or removed, and that the user's table does
+  not replace, and the target reports each in its upgrade report, as it reports a setting whose
+  default moved ([target options](options.md)).
+- **Where it lives.** The target's `Configure` builds the merged table — the stated version's
+  built-in rows under the user's — and the generator it returns holds it, for its refine steps to
+  read ([the refine layer](../refine/pipeline.md)). It is not an `EmitterInput` field beside
+  `Policy`, because every row is one target's: a Go type means nothing to Kotlin, and options
+  already give a per-target setting a strict decode, a version and defaults per version, which a
+  separate input would need all over again. The naming tables live in options for the same reason
   ([naming](../refine/naming.md)).
 - **What a mapped type must do.** A type some built-in row names is one the target knows: it writes
   that type's literals, checks its constraints and knows whether it has methods. Any other type is
@@ -267,10 +321,13 @@ value as its primitive's default row does unless the target's lowering table say
   ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so its key's row never
   encodes it. One whose encoding names a `WireType` of `string` is text to encode, as Smithy has a
   `@mediaType` string in a header ([encodings](../../ir/constraints.md#encodings)), and is keyed as
-  `bytes` under the same name: the row writes the text's UTF-8 octets as that encoding writes
-  octets, and reads it back as text, refusing octets that are no UTF-8, so `hi` under `base64` is
-  `aGk=`. Read under `{string, name}`, one key would mean both, and a row encoding it would encode
-  OpenAPI's text twice.
+  `bytes` under the same name, the key `Key` makes: the row writes the text's UTF-8 octets as that
+  encoding writes octets, and reads it back as text, refusing octets that are no UTF-8, so `hi`
+  under `base64` is `aGk=`. A target tells such a value by `Key`'s primitive differing from the
+  value's: where `Lookup` finds that key's own row, its `Type` names the bytes type the value's
+  octets are written as, while the value is text; with none, the value is typed as its `WireType`'s
+  row types it, as any encoding with no row of its own is. Read under `{string, name}`, one key
+  would mean both, and a row encoding it would encode OpenAPI's text twice.
 
 Each target's lowering table names the type and the codec of each ([Go](../targets/go/lowering.md),
 [Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows and the lookup. The designs it was

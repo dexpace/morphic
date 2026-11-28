@@ -35,18 +35,43 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 ## Read a document once per run, through a shared walk or index
 `read-once-per-run`
 
-- **Rule.** A new check, lowering or pass that needs a fact about the whole document reads it from
-  a walk or index built once per run, adding a visitor to `ir.WalkValues`, pruned by
-  `references/design-rules.md#prune-a-visitor-to-its-carriers`, or a field to the run's index,
-  never a walk or scan of its own per check or query. A fact is computed once, at the level owning
-  it: a path item's, not once per operation it mounts.
-- **Why.** Each repeat was found and removed later: two parses and four walks per compile (#340),
-  seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), a scan per
-  pointer hop that made resolution quadratic (#379), and per-operation path item entries (#414).
-- **Probe.** Count walks per run through a seam
+- **Rule.** A new check, lowering or pass needing a whole-document fact reads a walk or index built
+  once per run, adding a visitor to `ir.WalkValues`
+  (`references/design-rules.md#prune-a-visitor-to-its-carriers`) or a field to the run's index,
+  never its own scan per query; a remembered reading takes
+  `references/design-rules.md#remembered-reading-keys-what-it-reads`. Compute a fact once, at its
+  owning level: a path item's, not per operation it mounts.
+- **Why.** Each repeat was removed later: two parses and four walks per compile (#340), seventeen
+  walks per `irverify.Verify` (#1125), two walks building one list (#290), a scan per pointer hop
+  making resolution quadratic (#379), and per-operation path item entries (#414).
+- **Probe.** Count walks per run
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#counting-seam-for-optimizations`)
-  and the work at n, 2n and 4n
+  and work at n, 2n and 4n
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`).
+
+## Key a remembered reading on everything it reads that can vary
+`remembered-reading-keys-what-it-reads`
+
+- **Rule.** A remembered reading's key (`ReadOncePerRun` in
+  `compilers/openapi/internal/lowering/lowering.go`) holds everything the reading reads that can
+  differ between callers: the context's document, and through it its dialect, as `admissionsIn` in
+  `compilers/openapi/internal/schema/admission.go` keys admissions by the asking dialect.
+- **Why.** #1996 keyed an `allOf` decision by schema alone while reading `c.SchemaRules()`, leaking
+  the first caller's dialect across documents (#2093).
+- **Probe.** List what the reading and its callees read off the context (`git grep -n 'c\.'`) and
+  confirm each item that can differ between callers sits in the key.
+
+## Read another node's source schema through bindings, not the registry
+`read-the-source-not-the-registry`
+
+- **Rule.** A lowering deciding one node's fields from another node reads that node's source schema
+  through the bindings, not its registry node (`Node`, `NodeAt` in `compilers/compile/types.go`),
+  except the position's own node built before the read.
+- **Why.** A referenced node registers when its own declaration lowers or its build returns, so
+  reading the registry made #1977's draft `order-dependent` on a `$ref` cycle (`U`/`C`/`D`/`H`)
+  (#1978).
+- **Probe.** `go run ./cmd/morphic-harness <spec>` over a spec declaring the read node after the
+  reader, and over #1978's `$ref` cycle.
 
 ## Prune a visitor to the path to its carriers
 `prune-a-visitor-to-its-carriers`
@@ -86,8 +111,23 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   noun another package uses otherwise is renamed, not explained in a doc comment.
 - **Why.** Names that needed their comments, and comments that needed other coined names, left
   the code and the compiled IR unreadable to their owner (#2130).
-- **Probe.** This lists the one-letter parameters a change adds:
+- **Probe.** This lists a change's one-letter parameters, and
+  `references/design-rules.md#read-each-declared-name` reads the rest:
   `git diff origin/main -- '*.go' | grep -nE '^\+func [A-Za-z][^(]*\((.*[, ])?[a-z] [*A-Za-z.]+[,)]'`.
+
+## Read each name a change declares against what it holds
+`read-each-declared-name`
+
+- **Rule.** Read every name the diff declares, a local, a field, a test helper or a function,
+  beside the value it holds where it is used: a word naming another thing passes every grep, as
+  `encoded` did for a decoded value. Rename it by
+  `references/design-rules.md#name-what-it-holds`.
+- **Why.** `whole`, `encoded`, `unencoded` and `invalid` passed the one-letter grep and a first
+  reading of the type table's packages, found a round later (#2240 at 006e245ff); a test field
+  `tableRow` held a kind (#2241 at ac199cb0b).
+- **Probe.** This lists each declaration and assignment to read, a struct field by the lines
+  reading it:
+  `git diff origin/main -U0 -- '*.go' | grep -nE '^\+.*(:= |\b(var|const|func|type) )'`.
 
 ## Place shared code by its second user
 `second-user`
@@ -117,6 +157,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   are now refused (#1122).
 - **Probe.** Each new function does more than call another, each new interface has two
   implementations or a test seam, and `go test ./internal/archtest` passes.
+
+## Weigh a maintained tool's feature before a hand-rolled mechanism
+`maintained-mechanism-first`
+
+- **Rule.** Before adding or growing a mechanism (a script, a prescribed command or pipeline, a CI
+  step, a Makefile target, custom checker code), name the maintained feature that could do the job:
+  a tool flag, a repository script or Go binary feature, a linter entry or a CI check. Take it
+  unless it cannot serve, and say why in the PR. Replace, never patch, a mechanism needing extra
+  rounds for quoting, signals, word splitting or network state.
+- **Why.** #1532 rejected a review-facts script, #1233 used `forbidigo` over custom code, and #2292
+  replaced three drafted mechanisms with `go test -timeout`, `golangci-lint --new-from-merge-base`
+  and existing `subjects.py`.
+- **Probe.** The PR names the feature weighed; grep the diff for `perl -e`, `python3.* -c`, `xargs`
+  and `while read` and hold each hit to that answer.
 
 ## A function crosses into another package only for a reason
 `function-crosses-for-a-reason`
@@ -187,18 +241,85 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   stayed apart, as sharing would change what they report (#789).
 - **Probe.** Diff every site's results over the shared table.
 
+## Decide a fact once, or ask the code that decides
+`decide-once`
+
+- **Rule.** Decide a fact one phase sets and another reports or acts on once, recording it on the
+  value read later or asking the deciding code; a phase that cannot says why in a comment. Call
+  library readings (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings`,
+  `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#override-a-library-misreading`);
+  a mirror stays only where no library call answers, held by a differential
+  (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#mirror-library-read-rules-exactly`,
+  `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#acyclic-trees`).
+- **Why.** `disjoint` in `compilers/openapi/internal/schema/decision.go` parted from `disjointAtoms`
+  in `compilers/openapi/internal/schema/allof_disjoint.go` (#2077); `declaresPositionScoped` drifted
+  thrice (#138, #1053, #2009); #1016 and #2132 deleted copies (#2280).
+- **Probe.** Find each predicate behind a message or later phase (`git grep -n`) and compile a grid
+  over kinds, value sets and formats (#2077's `EnumEnum`/`ConstConst`/`StrEnum`).
+
+## Implement a specification rule once across all spellings
+`one-rule-one-implementation`
+
+- **Rule.** A lowering rule the specification states once for every place it can be written is
+  implemented once, each spelling reaching it. An implementation per spelling leaves mixed spellings
+  to none of them.
+- **Why.** Separate `oneOf`/`anyOf` lowerings for standalone schemas, beside `allOf` and on `allOf`
+  entries left a `oneOf` beside an `allOf` whose partner sat on an entry to fall between them
+  (#2110, #2129).
+- **Probe.** Write the mixed spelling (a `oneOf` beside an `allOf` whose partner sits on an entry)
+  and compile it beside each pure spelling.
+
+## Fold several declarations of one thing from the whole set
+`fold-the-whole-set`
+
+- **Rule.** A merge of several declarations of one thing chooses from all of them at once, never
+  folding each into what the ones before it left; refuses values the result cannot admit before any
+  first-wins tiebreak; reports every drop; and bounds any pairwise judgement it makes. Sweep it with
+  three declarations in all six orders, as pairs cannot show a chain's order dependence.
+- **Why.** #1000's allOf merge first folded a field's declarations as a chain, so
+  `int32, uint32, uint16` reported an overlap and kept `uint32` verbatim while
+  `uint16, int32, uint32` reported nothing; a 741-pair sweep was clean, and only triples showed it
+  (#1000).
+- **Probe.** The triple sweep in every order gives each result and report alike, up to the ties
+  the merge reports.
+
+## Refuse a callback's whole operation through one choke point
+`refusal-inside-a-callback`
+
+- **Rule.** An API that records refusals for a later report and runs a caller's callback refuses
+  the enclosing operation when anything inside the callback is refused, marked where every refusal
+  passes (as `refuse` in `ir/edit.go` does) and cleared by `defer`; loses nothing to a report or
+  drain called inside the callback; and rolls back, not only reports, a bad state found late.
+- **Why.** `ir.Editor`'s change callback applied an update whose own write was refused, a drain
+  inside it discarded earlier refusals, a node moved off its key was reported but kept, a mark set
+  at some refusal sites missed a call refusing earlier, and a panicking change left the mark set
+  (#1097).
+- **Probe.** Each case against a control edit making no misuse: the update is absent and its
+  refusal reported.
+
 ## A reused reader's fallback must suit its new caller's decision
 `fallback-suits-the-decision`
 
 - **Rule.** When a new caller reuses a reader, name the decision its fallback (its answer for what
-  it does not read) was chosen for, and the one the caller makes. Where the fallback is safe for the
-  first and unsafe for the second, the reader reports that it fell back, as `Budget.Exhausted`
-  reports a cut, and the caller takes that as its own safe answer.
-- **Why.** `conjunctTypes` answers `anyInstance` for what it does not read, which keeps
+  it does not read) was chosen for, and the caller's. Where the fallback is unsafe for the caller,
+  the reader reports that it fell back, as `Budget.Exhausted` reports a cut, and the caller takes
+  its own safe answer.
+- **Why.** `conjunctTypes` answers `anyInstance` for what it skips, keeping
   `allof-disjoint-conjuncts` silent. #1656 reused it as `Merger.Untyped` (now `Walk.Untyped`), where
-  `anyInstance` let a kind replace the structure: `{allOf: [{$ref: NotStr}], properties: …}` beside `{type: string}`
-  lowered to a bare string, unreported through three review rounds (#1673).
-- **Probe.** Through the new caller, compile one input per construct the reader does not read, and
+  `anyInstance` let `{allOf: [{$ref: NotStr}], properties: …}` beside `{type: string}` lower to a
+  bare string past three rounds (#1673).
+- **Probe.** Through the new caller, compile one input per construct the reader does not read
+  (`references/design-rules.md#reused-reader-past-its-bound`), checking each verdict against the
+  source.
+
+## Probe a reused reader past every bound it holds
+`reused-reader-past-its-bound`
+
+- **Rule.** A reader reused through a new caller is also compiled with an input at N and N+1 of
+  every bound it holds, since its answer past the bound is a fallback chosen for its first caller.
+- **Why.** On #1977, reusing the 64-type composition walk missed a 65-level hierarchy taking the
+  base's description over the leaf's through eight review rounds (#1983).
+- **Probe.** Through the new caller, compile inputs at N and N+1 of each bound the reader holds and
   check each verdict against the source.
 
 ## Keep code that needs no morphic concept apart from the domain
@@ -213,3 +334,31 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   (#785, #1140), and five panic barriers rendered what they caught each its own way until
   `barrier.Catch` alone did (#1130).
 - **Probe.** List the domain types each new declaration names; one naming none is a candidate.
+
+## Order a struct's fields for the size `fieldalignment` reports as optimal
+`fields-in-optimal-size-order`
+
+- **Rule.** A production struct a change adds or grows orders its fields to the size
+  `fieldalignment` reports as optimal, `ir` structs included, and keeps that order over the one a
+  document lists. JSON v2 encodes members in declaration order, which the shape pin ignores, so
+  goldens move and `IRVersion` does not. No lint holds it until #2300 lands.
+- **Why.** #1388 packed `ir.HTTPBinding` and `ir.PartEncoding`; a revert to the order `docs/ir`
+  lists was undone at the maintainer's request, and the packing moved 50 goldens in member order
+  alone (#1388).
+- **Probe.** Over each package the change touches,
+  `go run golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment ./<package> 2>&1 | grep 'optimal size' | grep -v '_test.go'`
+  names no struct the change adds or grows.
+
+## Keep build constraints out of production files
+`no-build-constrained-production-file`
+
+- **Rule.** Production code holds no file only some systems build (`//go:build`, `_<goos>.go`), as
+  `internal/decls` reads packages whole (#409). Select by a value tests pass per system, as
+  `imagePath` in `engine/cache/build.go` does, and run `GOOS=<os> go vet` per target. Where only a
+  constrained file reaches an API, the tracker decides (#1318).
+- **Why.** OS-tagged production files passed `go build` and package tests, then failed
+  `TestInterfaceAssertions_CoverEveryExportedPair` and `TestResolutionCalls_HeldToTheBaseline`
+  (#1839).
+- **Probe.** Add a production file in `engine/cache` opening with `//go:build never` (like
+  `internal/decls/testdata/constrained/left_out.go`) in a throwaway tree:
+  `go test ./internal/archtest -run 'TestInterfaceAssertions|TestResolutionCalls'` fails.

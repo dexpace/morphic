@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to a coding agent working with code in this repository. Claude Code
+loads it by name, and [`AGENTS.md`](AGENTS.md) sends an agent that loads that file here.
 
 ## Project status
 
@@ -36,8 +37,9 @@ covers.
   only; every other layer needs `docs/ir/` and not this.
 - **`docs/emitters/` is normative for the emitter half**, the way `docs/ir/` is for the IR.
   Its root, `docs/emitters/README.md`, maps the set: a shared document says what every target does,
-  and one under `targets/` how that target does it. Only the plan layer, `emitters/plan`, is
-  built, so read the ones a change needs before writing the next package.
+  and one under `targets/` how that target does it. Most of `emitters/` is not built yet ([what is
+  built](docs/emitters/packages.md#what-is-built) lists what is), so read the ones a change needs
+  before writing a package.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
 - `docs/ir-spec-matrix.md` — the union of source-format capabilities the IR is designed against.
 - `docs/prior-art.md` — the evidence base (oagen, Kiota, TypeSpec/TCGC) and the specific mistakes
@@ -62,6 +64,12 @@ covers.
 a PR, the lessons past PRs taught, and the scripts they use. A skill links to these documents
 rather than restating them; `morphic-curating-skills` says where a new lesson goes. The scripts
 need Python 3.14, run as `python3.14`.
+
+Antigravity does not look for skills under `.claude`, so `.agents/skills.json` names
+`.claude/skills` for it. It loads each skill whose directory sits directly under one named there,
+and `internal/archtest` holds each skill to that and `AGENTS.md` to the size a rule file is cut at.
+Antigravity would also load a skill from `.agents/skills`, where `skills_lint` does not look, so the
+same package holds `.agents` to the manifest alone.
 
 **The skills are experimental.** A rule can be wrong or stale, and a script can report what its
 input does not support. Treat what a skill says as a claim to check, not a result: before relying on
@@ -166,6 +174,8 @@ barrier/     Layer 0 — runs code its caller does not own, turns a panic in it 
 scratchstate/
              Layer 0 — scratch state a check reads one collection after another through: the
              map both checkers empty between collections. Imports ONLY the stdlib.
+pathfold/    Layer 0 — the fold a file system compares paths by, and what makes a path segment
+             portable. Imports golang.org/x/text only. (Planned.)
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion, correlation keys), derived on demand and never stored. Imports
@@ -187,10 +197,9 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
 pass/        Layer 1 — IR → IR passes. Imports ir, ir/irfacts and scratchstate.
-emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. Only the plan
-             layer is built.
-  plan/      Layer 2 — the decisions every emitter reads, derived once for all of them. Imports
-             ir and ir/irfacts only.
+emitters/*   Layer 2 — each package imports what docs/emitters/packages.md tables for it; never a
+             compiler, the engine or another target. Most are not built yet; packages.md lists
+             those that are.
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
   cache/     what a run compiled, kept on disk between processes, and what names a build.
@@ -200,6 +209,11 @@ engine/      Layer 3 — orchestration; imports everything below. It owns every 
              Imports ir only.
   report/    the findings, as text or a JSON report, and --explain. Imports ir and triage.
   output/    the IR document to a stream or a file, through engine/internal/atomicfile.
+  project/   the project configuration a run generates from. (Planned.)
+  emit/      the emit stage: the plan built once, each target configured and run through the
+             contract's checked calls. No I/O. (Planned.)
+  artifacts/ a generation's writes and prunes under its output root, planned before the run's
+             verdict and applied after. (Planned.)
 cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report, output and triage) + its
              command framework (cobra, pflag).
 cmd/morphic-harness/
@@ -223,6 +237,12 @@ Read them off the tree:
 git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 ```
 
+The emitter half's packages sit in tiers of their own, no import pointing up: the
+contract, the kernel of shared packages beneath it, one package per target, and the engine's
+packages that run and write them. `docs/emitters/packages.md` tables each, with what it holds and
+what it may import, and says how to list the ones built; the diagram above marks as planned those
+outside `emitters/`.
+
 Three things follow when you add a package: put it in `rules` (or, for tooling under `internal/`
 alone, in `exempt` with the reason it is out), because `TestImportGraph_EveryPackageIsRuledOrExempt`
 fails otherwise; remember an unkeyed subdirectory is audited under its nearest keyed ancestor's
@@ -232,7 +252,7 @@ under `compilers/` and `emitters/` the same test requires one. `TestImportGraph_
 fails on an entry that no production file the rule audits imports, so a change that drops a
 package's last import of something drops the entry with it, and on an entry with no file to audit,
 unless `unbuilt` says why it is ruled before its package exists, as `emitters` is while it holds
-only `emitters/plan`.
+only packages carrying rules of their own.
 
 A package under `compilers/openapi/internal` takes a row in `layers`, the layer its imports and its
 role say, because `TestLayers_EveryCompilerPackageHasOne` fails without one;

@@ -100,10 +100,9 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
   well-formedness rules the IR states, and `names` reports names a target may render alike; all
   three run by default. Deduplication, filtering, version slicing and IR overlays are
   designed in [Architecture](docs/architecture.md) but not built.
-- **Emitters** (`emitters/*`) turn an IR document into the artifacts for one target. No target is
-  built yet: `emitters/plan`, the decisions every target reads, is the part that is. SDK runtime
-  policy (retries, timeouts, telemetry, the error taxonomy) is a separate emitter input, not part
-  of the IR.
+- **Emitters** (`emitters/*`, most of it not built yet) turn an IR document into the artifacts for
+  one target. SDK runtime policy (retries, timeouts, telemetry, the error taxonomy) is a separate
+  emitter input, not part of the IR.
 
 The packages are layered along the pipeline, and a test enforces the import graph: compilers and
 emitters never import each other ([Architecture](docs/architecture.md) §3).

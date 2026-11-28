@@ -65,6 +65,17 @@ it.
 - **Probe.** Feed each guard an input it cannot classify, assert every glob matches a file, fail
   when no comparison ran, and rename a fixture.
 
+## Compile end-to-end lowering tests through a verifying helper
+`compile-through-a-verifying-helper`
+
+- **Rule.** An end-to-end lowering test compiles through a helper that holds the document to
+  `irverify` (`compileVerified`, `requireVerifies` in `compilers/openapi/e2e`). This rule stands
+  until #2288's check lands.
+- **Why.** At #1937's `32bda46d9`, six helpers returned `Compile` output without verification,
+  letting a lowering test pass on a document `irverify` rejects (#1966).
+- **Probe.** `git grep -n -E 'Compile\(|RunSpec\(' -- compilers/openapi/e2e`, checking each helper
+  beside its verification until #2288 replaces the listing.
+
 ## Probe a new distinction where what it compares ignores its property
 `distinction-where-nothing-depends`
 
@@ -244,6 +255,20 @@ it.
 - **Probe.** Plant a comparator returning 0 and a dropped tiebreak, run the test with -count=50, and
   confirm every run fails; plant a uniformly wrong result and confirm the two-order test fails.
 
+## A run-against-itself test over a small map needs at least 128 repeats
+`repeats-need-many-runs`
+
+- **Rule.** Repeating a run against itself is the weaker form of
+  `references/assertions-and-reach.md#ordering-tests-pin-the-order`; use it only over a map of at
+  most eight entries, repeated at least 128 times. Go ranges a small map from a random start in a
+  fixed slot order, so fewer repeats often agree, and past eight entries even 128 sometimes agree:
+  pin the order there. Name the Go release, as the runtime may change it.
+- **Why.** Over 20,000 trials on `go1.27.3`, two keys agreed in 6,907 trials at 8 runs, 2,353 at
+  16 and 0 at 128 (#1948, #1546); at 128 runs the same program agreed in 4 trials over nine
+  entries, 423 over 64.
+- **Probe.** Run #1948's trial program at the repository's Go release: at 128 repeats, two and
+  eight entries agree in 0 trials, nine in some.
+
 ## Name fixtures so the right answer sorts last
 `sort-order-fixture`
 
@@ -279,3 +304,15 @@ it.
 - **Probe.** For each cmpopts option or ignored field in an oracle, remove it and rerun the corpus;
   then plant the flip the oracle guards (null vs [], a differing Hint) and confirm the oracle goes
   red with the option in place.
+
+## Assert on a cyclic fixture through scalars and pointer identity
+`cyclic-fixture-asserts-scalars`
+
+- **Rule.** In a test whose fixture holds a cycle, never hand testify a value cyclic through slices
+  or maps with no pointer on the cycle: on failure it formats the value and recurses until the
+  stack overflows, killing the test binary. Compare strings, lengths and pointer
+  identity, or use `cmp.Diff` once a planted failure shows it reports on that fixture, and see the
+  test report rather than crash.
+- **Why.** A failing assertion on a group slice holding itself overflowed the stack and took the
+  whole `ir` test binary down, its trace pointing at another test (#1145).
+- **Probe.** The planted failure prints the test's message and no `fatal error: stack overflow`.

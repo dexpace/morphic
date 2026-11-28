@@ -35,13 +35,28 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `merge-the-base-first`
 
 - **Rule.** A stacked PR lands on its base, not on `main`. Merge `origin/<base>` before
-  `origin/main`, each as its own merge so that a defect shows against the merge causing it, and run
-  on each what `references/merging-main.md#merge-main-first` names: the push checklist sees only a
-  conflict.
-- **Why.** A head green alone, and reported `MERGEABLE` and `CLEAN`, stopped compiling once merged
-  with its base, which merging `main` could not show (#1183, #1179).
+  `origin/main`, each as its own merge so a defect shows against the merge causing it, and run on
+  each what `references/merging-main.md#merge-main-first` names: the push checklist sees only a
+  conflict. Where the base itself conflicts with `main`, merge the base alone and leave `main` to
+  the base, checking `main` with a trial merge in a throwaway tree and saying so in the body.
+- **Why.** A head green alone stopped compiling once merged with its base (#1183, #1179). On #1882,
+  a base conflicting with `main` in seven files would have dragged three other PRs into the child
+  (#1887).
 - **Probe.** `gh pr view <N> --json baseRefName --jq .baseRefName`, then
   `git merge --no-commit --no-ff origin/<base>` and `go vet ./...` before touching `main`.
+
+## Measure a side branch's subjects before merging it into a PR branch
+`measure-a-side-branch-before-merging-it`
+
+- **Rule.** Before merging a side branch into a PR branch, run
+  `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py --base <PR branch> N "<title>"`
+  from the side branch, and reword over-length subjects there before they reach the pushed branch. A
+  one-commit side branch is measured with ` (#N)` appended, which a merged side commit never lands
+  under, so judge its subject's length without it.
+- **Why.** On #1938 (`7e3020458`), `a7fb9cebc` (74 characters) reached the branch through a
+  side-branch merge that `--first-parent` reads past (#1963).
+- **Probe.** In a scratch clone, put an 82-character subject on a side branch: `subjects.py` exits 1
+  from the side branch before the merge and exits 0 from the PR branch after.
 
 ## When a stacked base has landed, merge its final head first
 `merge-a-landed-bases-final-head`
@@ -186,9 +201,14 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** Build a trial merge by SHA, without copying the merge into a fresh repository:
   `t=$(git merge-tree --write-tree <head> <pr head>) && git worktree add --detach <dir> "$(git commit-tree "$t" -p <head> -p <pr head> -m trial)"`,
-  which a conflict stops.
+  which a conflict stops. A pair that must be read together though it conflicts is built from the
+  caller's directory,
+  `git worktree add --detach <dir> <head> && git -C <dir> merge "$(git rev-parse <pr head>)"`,
+  then resolved and committed in `<dir>`.
 - **Why.** Copying 14 merges out by `git archive`, `git init` and `git add -A` took 47 minutes; this
-  form trial-merged all 27 open PRs in about a minute (#1532, #1542).
+  form trial-merged all 27 open PRs in about a minute (#1532, #1542). Pull requests each claiming
+  the next version conflicted in the version files, so no such pair had a tree to read (#1819,
+  #1846).
 
 ## Confirm a trial merge by both its parents before reading a result
 `trial-merge-happened`
@@ -196,8 +216,9 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Rule.** Build each trial merge by `references/merging-main.md#trial-merge-by-commit-tree`, then,
   from the worktree that built it, confirm both parents with
   `test "$(git -C <dir> rev-parse HEAD^1 HEAD^2)" = "$(git rev-parse <head> <pr head>)"` before
-  reading a result, as a failed step leaves `<dir>` missing or holding an earlier merge, of another
-  `<pr head>` or of an earlier `<head>`. Remove `<dir>` once read.
+  reading a result, as a failed step leaves `<dir>` missing, at `<head>` with its merge unfinished,
+  or holding an earlier merge, of another `<pr head>` or of an earlier `<head>`. Remove `<dir>` once
+  read.
 - **Why.** A loop over the open PRs printed `ok` while every merge of another worktree's
   `FETCH_HEAD` had ended in `fatal` (#1210). Run inside `<dir>`, a `<head>` of `HEAD` names the
   trial's own commit, so the confirm runs where the build did.

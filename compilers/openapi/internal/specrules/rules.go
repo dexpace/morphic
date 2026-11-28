@@ -361,7 +361,9 @@ func (r ruler) inapplicable(rule Rule) {
 // reservedNames reports a name the rule reserves, where the conditions hold,
 // graded by the rule's level: the value of a string field, at the field, or a
 // key of a map field, at the key. OpenAPI says a definition under it SHALL be
-// ignored; it lowers as declared, for the emitter to suppress.
+// ignored, and the message says that and stops: the table runs before any
+// lowering decides what becomes of the definition, so it knows nothing of the
+// definition's fate, nor of what a later stage does with it.
 func reservedNames(rulerValue ruler, rule Rule) {
 	node := nodeview.Deref(rulerValue.f.byKey[rule.Field])
 	if node == nil || rulerValue.f.test(rule.When) != answerYes {
@@ -372,8 +374,7 @@ func reservedNames(rulerValue ruler, rule Rule) {
 		if reserved, is := reservedName(name, rule.Names); is {
 			place := newKeyPlacer(rulerValue.w, rulerValue.f.at.node, rulerValue.f.at.ptr).place(rule.Field)
 			rulerValue.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
-				"says a definition for %s SHALL be ignored, so it is lowered as declared and left for the emitter to "+
-				"suppress", rulerValue.f.obj.noun(), name, reserved), ptr)
+				"says a definition for %s SHALL be ignored", rulerValue.f.obj.noun(), name, reserved), ptr)
 		}
 		return
 	}
@@ -384,8 +385,8 @@ func reservedNames(rulerValue ruler, rule Rule) {
 	for _, pair := range rulerValue.w.view.MappingPairs(node) {
 		if reserved, is := reservedName(pair.Key, rule.Names); is {
 			rulerValue.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, places.place(pair.Key), "header %q is "+
-				"reserved: OpenAPI says a %s entry in a headers map SHALL be ignored, so it is lowered as declared and "+
-				"left for the emitter to suppress", pair.Key, reserved), ptr.AppendToken(pair.Key))
+				"reserved: OpenAPI says a %s entry in a headers map SHALL be ignored", pair.Key, reserved),
+				ptr.AppendToken(pair.Key))
 		}
 	}
 }

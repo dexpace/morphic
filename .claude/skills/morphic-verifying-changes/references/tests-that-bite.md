@@ -113,6 +113,17 @@ is not behaviour held.
 - **Probe.** Run each expected-clean fixture under time and memory caps, feed expected output to the
   next parser, and grep the input for what the expected output omits.
 
+## Hash what is derived in a pin, never a list another test grows
+`pin-hashes-what-is-derived`
+
+- **Rule.** A pin hashes what is derived (every rune of a range, the classes the tables tell
+  apart), never a list another test grows. Where its input can legitimately grow, the failure text
+  says what growth means.
+- **Why.** On #1219 (`11739f18a`), `describeNames` hashed every `canonicalCases` row into
+  `TestIRVersion_PinsTheNames`, so adding a correct conformance row falsely asked for a breaking
+  bump (#2287).
+- **Probe.** Add a correct row to the other test's list; the pin stays green.
+
 ## Check that the assertion itself can fail
 `assertion-must-be-able-to-fail`
 
@@ -163,3 +174,40 @@ is not behaviour held.
 - **Probe.** In a sequential table, plant a defect only the first row reaches that changes what the
   Rule names and lets every later row run, then count the failing rows by their indent:
   `go test -count=1 -run '^<Test>$' ./<package> | grep -cE '^ {4}--- FAIL: <Test>/'` prints 1.
+
+## Test a copy, or a read its owner hands out, by writing after taking it
+`write-after-the-copy-or-read`
+
+- **Rule.** Test a copy by writing into it (append to a slice, set a map key) and asserting the
+  original unchanged, and a read its owner hands out by keeping it across the owner's later writes,
+  before and after the first. On a copier that fills a whole struct before refilling its reference
+  fields, plant skipping a refill as well as zeroing a field
+  (`references/tests-that-bite.md#require-the-copy-before-writing-it`).
+- **Why.** `ir/clone.go` prefills with `dst.Set(v)`, so a mutant skipping an empty map left the
+  copy sharing the original's past a test asserting the copy's values (#1097); a group read stayed
+  stable until its slice was compacted in place, then skipped an element, past a random test
+  comparing each read at once (#1145).
+- **Probe.** The planted skipped refill reddens the test writing into the copy.
+
+## Require a copy's contents before writing into it
+`require-the-copy-before-writing-it`
+
+- **Rule.** A test that writes into a copy or a handed-out read first checks its contents with
+  `require`, so a plant zeroing a map or a pointer fails on that check: written into, the zeroed
+  field panics, which ends the test binary and leaves every test after it unreported.
+- **Why.** A zeroed `Imports` planted in the type table's row copy panicked two tests writing into
+  the copies they took, and the lookup tests reported nothing (#2241 at 22e2dc406).
+- **Probe.** Plant the zeroing on the copier: the run lists a `--- FAIL` for each copy test and no
+  `panic:`.
+
+## Let a random test run several operations between its checks
+`random-test-leaves-state-pending`
+
+- **Rule.** Where the code defers work (pending removals, caches, dirty flags), a random or model
+  test runs several operations between its oracle's checks and observes some mid-operation: a check
+  reading through the path that settles the state settles it every step. Plant a defect that needs
+  the pending state, and see the random test alone redden.
+- **Why.** The editor's random test compared every read after each edit, so no removal was pending
+  when the next update ran, and three planted defects passed it; one to three edits between checks
+  killed all three (#1145).
+- **Probe.** The plant, run against the random test alone.
