@@ -217,11 +217,11 @@ func rowsWithImports() typemap.Table {
 func TestLookup_ReturnsACopy(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name      string
-		primitive ir.PrimitiveKind
-		encoding  typemap.Encoding
-		wantFound typemap.Found
-		tableRow  ir.PrimitiveKind
+		name         string
+		primitive    ir.PrimitiveKind
+		encoding     typemap.Encoding
+		wantFound    typemap.Found
+		defaultRowOf ir.PrimitiveKind
 	}{
 		{"the key's own row", ir.PrimitiveDecimal, typemap.Encoding{}, typemap.Exact, ir.PrimitiveDecimal},
 		{"the row the value travels as", ir.PrimitiveUUID, encoding("hex", ""), typemap.TravelsAs, ir.PrimitiveString},
@@ -231,7 +231,7 @@ func TestLookup_ReturnsACopy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			table := rowsWithImports()
-			want := rowsWithImports().Primitives[tc.tableRow][""]
+			want := rowsWithImports().Primitives[tc.defaultRowOf][""]
 			row, found, ok := typemap.Lookup(table, tc.primitive, tc.encoding)
 			require.True(t, ok)
 			require.Equal(t, tc.wantFound, found)
@@ -242,7 +242,7 @@ func TestLookup_ReturnsACopy(t *testing.T) {
 			assert.Empty(t, cmp.Diff(rowsWithImports(), table), "writing the row Lookup returned wrote the table")
 
 			kept, _, _ := typemap.Lookup(table, tc.primitive, tc.encoding)
-			owned := table.Primitives[tc.tableRow][""]
+			owned := table.Primitives[tc.defaultRowOf][""]
 			owned.Imports["owner"] = "owner"
 			owned.Dependency.MinVersion = "v8"
 			assert.Empty(t, cmp.Diff(want, kept), "writing the table reached a row Lookup returned before")
