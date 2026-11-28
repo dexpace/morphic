@@ -209,6 +209,7 @@ func TestDecodeLayer_RefusesNullWhereverJSONDecodes(t *testing.T) {
 		{"an interface", reflect.Interface, decodeLayerOf[member[any]], `{"f":null}`, "/f"},
 		{"a value inside an interface", reflect.Interface, decodeLayerOf[member[any]], `{"f":[1,{"a":null}]}`, "/f/1/a"},
 		{"a raw value", reflect.Slice, decodeLayerOf[member[jsontext.Value]], `{"f":null}`, "/f"},
+		{"a raw value in a map", reflect.Map, decodeLayerOf[member[map[string]jsontext.Value]], `{"f":{"a":null}}`, "/f/a"},
 		{"a type decoding itself", reflect.Struct, decodeLayerOf[member[selfDecoded]], `{"f":null}`, "/f"},
 		{"a type decoding itself from text", reflect.Struct, decodeLayerOf[member[netip.Addr]], `{"f":null}`, "/f"},
 		{"a time", reflect.Struct, decodeLayerOf[member[time.Time]], `{"f":null}`, "/f"},
@@ -276,19 +277,25 @@ func TestDecodeLayer_RefusesWhatIsNotAStrictObject(t *testing.T) {
 	}
 }
 
-// partlyEncoded holds a member its JSON form leaves out and one it holds as
-// raw JSON.
+// partlyEncoded holds a member its JSON form leaves out and members it holds
+// as raw JSON: one alone, and a map of them, as a hint's Extra is.
 type partlyEncoded struct {
-	Name   string         `json:"name,omitempty"`
-	Hidden string         `json:"-"`
-	Raw    jsontext.Value `json:"raw,omitempty"`
+	Name   string                    `json:"name,omitempty"`
+	Hidden string                    `json:"-"`
+	Raw    jsontext.Value            `json:"raw,omitempty"`
+	Extra  map[string]jsontext.Value `json:"extra,omitempty"`
 }
 
 func TestDecodeLayer_CopiesWhatItsJSONFormHolds(t *testing.T) {
 	t.Parallel()
-	got, err := options.DecodeLayer(partlyEncoded{Name: "n", Hidden: "h"}, []byte(`{"raw":{"a":null}}`))
+	got, err := options.DecodeLayer(partlyEncoded{Name: "n", Hidden: "h"},
+		[]byte(`{"raw":{"a":null},"extra":{"a":{"b":null}}}`))
 	require.NoError(t, err, "a null inside a member held as raw JSON is that member's to judge")
-	want := partlyEncoded{Name: "n", Raw: jsontext.Value(`{"a":null}`)}
+	want := partlyEncoded{
+		Name:  "n",
+		Raw:   jsontext.Value(`{"a":null}`),
+		Extra: map[string]jsontext.Value{"a": jsontext.Value(`{"b":null}`)},
+	}
 	assert.Empty(t, cmp.Diff(want, got), "a member tagged - is not copied, and a raw member keeps what raw writes")
 }
 

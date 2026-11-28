@@ -5,6 +5,6 @@
 // configuration shares (docs/emitters/contract/options.md): an unknown or
 // repeated member, a name in another case and invalid UTF-8 are refused, and a
 // value is read over a copy of its defaults. DecodeLayer reads a layer stating
-// no version, such as a user's type table, refusing every null in what it
-// decodes.
+// no version, such as a user's type table, refusing every null it decodes and
+// keeping one inside a member held as raw JSON.
 package options
