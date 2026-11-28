@@ -128,10 +128,10 @@ The IR does not state which discriminator a value no `Mapping` keys is a tag of,
 for each subtype, so the nearest is the plan's reading, the one the OpenAPI compiler reads an
 inferred tag against. Where a second discriminator above the subtype routes it too, the plan gives
 that one no route: one farther away routing it by its name, as OpenAPI's implicit mapping routes
-every schema building on a parent, or a nearer one where a farther `Mapping` keys the value. Routing
-the value from every base above it, the design this replaces, gave `Pet` the route `petType: lab`
-that neither the document nor the IR states, which an encoder writing a `Labrador` through `Pet`
-would have sent.
+every schema building on a parent, or a nearer one where a farther `Mapping` keys the value
+(GitHub #2313). Routing the value from every base above it, the design this replaces, gave `Pet` the
+route `petType: lab` that neither the document nor the IR states, which an encoder writing a
+`Labrador` through `Pet` would have sent.
 
 The IR may route one tag to several types, as two subtypes carrying one value do
 ([discriminator](../../ir/models.md#discriminator)): `Kitten` composing `Cat`, which pins `petType`

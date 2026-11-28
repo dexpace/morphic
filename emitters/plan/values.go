@@ -18,7 +18,8 @@ type valueRoute struct {
 // hierarchy's Mapping keys to its subtype is that discriminator's tag, which
 // the entry routes, so it gives none. Any other, a name or a tag read off the
 // subtype, is taken as the nearest discriminated ancestor's, which the IR
-// does not state (docs/emitters/plan/types.md#a-discriminators-routes).
+// does not state, so no other discriminator above it routes the value
+// (docs/emitters/plan/types.md#a-discriminators-routes, GitHub #2313).
 func valueRoutes(doc *ir.Document, ids []ir.TypeID) map[ir.TypeID][]valueRoute {
 	keyed := mappedRoutes(doc.Types)
 	nearest := newNearestBases(doc, ids).nearest
