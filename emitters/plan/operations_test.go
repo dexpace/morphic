@@ -107,7 +107,7 @@ func TestBuild_KeepsTheFirstOperationOfAnID(t *testing.T) {
 // TestBuild_ResolvesAnOperationsTier holds Stability to the operation's own
 // tier, else the innermost group's that states one, else none (T-44). A group
 // declared after a nested one, and a second service, each take only what
-// encloses them.
+// encloses them, and a tier outside the vocabulary is taken as stated.
 func TestBuild_ResolvesAnOperationsTier(t *testing.T) {
 	t.Parallel()
 	own := func(tier ir.Stability) func(*ir.Operation) { return func(o *ir.Operation) { o.Stability = tier } }
@@ -124,6 +124,10 @@ func TestBuild_ResolvesAnOperationsTier(t *testing.T) {
 				}),
 			),
 			group("group/none", "", []ir.Operation{operation("operation/no-tier", nil)}),
+			group("group/unknown", "experimental", []ir.Operation{
+				operation("operation/unknown-group-tier", nil),
+				operation("operation/unknown-own-tier", own("preview")),
+			}),
 		}},
 		ir.Service{ID: "service/two", Groups: []ir.OperationGroup{
 			group("group/two", "", []ir.Operation{operation("operation/second-service", nil)}),
@@ -140,6 +144,10 @@ func TestBuild_ResolvesAnOperationsTier(t *testing.T) {
 		"operation/own-stable":     ir.StabilityStable,
 		"operation/no-tier":        ir.StabilityUnstated,
 		"operation/second-service": ir.StabilityUnstated,
+		// A tier outside the vocabulary is taken as stated, the group's and
+		// the operation's own alike.
+		"operation/unknown-group-tier": "experimental",
+		"operation/unknown-own-tier":   "preview",
 	}
 	got := map[ir.OperationID]ir.Stability{}
 	for id, operationPlan := range built.Ops {
@@ -293,6 +301,8 @@ func bindingCases() []effectsCase {
 		{"operation/unbound", nil, plan.Effects{}},
 		{"operation/get-and-put", over("GET", "PUT"), idempotent},
 		{"operation/get-and-rpc", func(o *ir.Operation) { over("GET")(o); rpc(o) }, plan.Effects{}},
+		{"operation/get-and-message", func(o *ir.Operation) { over("GET")(o); o.Bindings.Message = &ir.MessageBinding{} }, plan.Effects{}},
+		{"operation/get-and-otp", func(o *ir.Operation) { over("GET")(o); o.Bindings.OTP = &ir.OTPBinding{} }, plan.Effects{}},
 		{"operation/graphql-query-and-get", func(o *ir.Operation) { graphQL("query")(o); over("GET")(o) }, both},
 		{"operation/marked-already", func(o *ir.Operation) {
 			over("GET")(o)
